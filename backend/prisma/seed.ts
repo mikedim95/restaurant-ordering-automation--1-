@@ -1,5 +1,6 @@
 // prisma/seed.ts
 import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
@@ -249,28 +250,106 @@ async function main() {
     });
   }
 
-  // ---------- Optional: Manager Profile (if MANAGER_USER_ID provided) ----------
+  // ---------- Staff profiles ----------
+  const defaultPassword = process.env.DEFAULT_USER_PASSWORD || "changeme";
+  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+  const managerEmail = (process.env.MANAGER_EMAIL || "manager@demo.local").toLowerCase();
+  const managerDisplayName = process.env.MANAGER_DISPLAY_NAME || "Demo Manager";
   const managerId = process.env.MANAGER_USER_ID;
+
   if (managerId) {
     await prisma.profile.upsert({
-      where: { id: managerId }, // primary key
+      where: { id: managerId },
       update: {
         storeId: store.id,
         role: Role.MANAGER,
-        displayName: "Demo Manager",
+        displayName: managerDisplayName,
+        email: managerEmail,
+        passwordHash,
       },
       create: {
         id: managerId,
         storeId: store.id,
         role: Role.MANAGER,
-        displayName: "Demo Manager",
+        displayName: managerDisplayName,
+        email: managerEmail,
+        passwordHash,
       },
     });
   } else {
-    console.warn("MANAGER_USER_ID not set; skipping Profile seed.");
+    await prisma.profile.upsert({
+      where: { email: managerEmail },
+      update: {
+        storeId: store.id,
+        role: Role.MANAGER,
+        displayName: managerDisplayName,
+        passwordHash,
+      },
+      create: {
+        storeId: store.id,
+        role: Role.MANAGER,
+        displayName: managerDisplayName,
+        email: managerEmail,
+        passwordHash,
+      },
+    });
+  }
+
+  const waiterEmail = (process.env.WAITER_EMAIL || "waiter1@demo.local").toLowerCase();
+  const waiterDisplayName = process.env.WAITER_DISPLAY_NAME || "Waiter 1";
+
+  const waiter = await prisma.profile.upsert({
+    where: { email: waiterEmail },
+    update: {
+      storeId: store.id,
+      role: Role.WAITER,
+      displayName: waiterDisplayName,
+      passwordHash,
+    },
+    create: {
+      storeId: store.id,
+      role: Role.WAITER,
+      displayName: waiterDisplayName,
+      email: waiterEmail,
+      passwordHash,
+    },
+  });
+
+  const tablesForAssignments = await prisma.table.findMany({
+    where: { storeId: store.id },
+    orderBy: { label: "asc" },
+  });
+
+  for (const table of tablesForAssignments.slice(0, 2)) {
+    await prisma.waiterTable.upsert({
+      where: {
+        storeId_waiterId_tableId: {
+          storeId: store.id,
+          waiterId: waiter.id,
+          tableId: table.id,
+        },
+      },
+      update: {},
+      create: {
+        storeId: store.id,
+        waiterId: waiter.id,
+        tableId: table.id,
+      },
+    });
   }
 
   console.log("✅ Seed complete for store:", store.slug);
+  console.log("   Manager login:", managerEmail);
+  console.log("   Waiter login:", waiterEmail);
+  console.log(
+    "   Waiter tables:",
+    tablesForAssignments
+      .slice(0, 2)
+      .map((t) => t.label)
+      .join(", ") || "(none)"
+  );
+  console.log("   Default password:", defaultPassword);
 }
 
 main()

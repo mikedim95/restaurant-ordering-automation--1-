@@ -19,10 +19,10 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
   }
 }
 
-export async function requireRole(roles: string[]) {
+export function requireRole(roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const user = (request as any).user;
-    
+
     if (!user || !roles.includes(user.role)) {
       return reply.status(403).send({ error: 'Insufficient permissions' });
     }
