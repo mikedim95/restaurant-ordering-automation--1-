@@ -1,18 +1,25 @@
-import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
-import { categories, items, modifiers, modifierOptions, itemModifiers } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { FastifyInstance } from "fastify";
+import { db } from "../db/index.js";
 
 export async function menuRoutes(fastify: FastifyInstance) {
-  fastify.get('/menu', async (request, reply) => {
+  fastify.get("/menu", async (request, reply) => {
     try {
       // Fetch all menu data
-      const [categoriesData, itemsData, modifiersData, modifierOptionsData, itemModifiersData] = await Promise.all([
-        db.select().from(categories).orderBy(categories.sortOrder),
-        db.select().from(items).where(eq(items.available, true)).orderBy(items.sortOrder),
-        db.select().from(modifiers),
-        db.select().from(modifierOptions),
-        db.select().from(itemModifiers),
+      const [
+        categoriesData,
+        itemsData,
+        modifiersData,
+        modifierOptionsData,
+        itemModifiersData,
+      ] = await Promise.all([
+        db.category.findMany({ orderBy: { sortOrder: "asc" } }),
+        db.item.findMany({
+          where: { available: true },
+          orderBy: { sortOrder: "asc" },
+        }),
+        db.modifier.findMany(),
+        db.modifierOption.findMany(),
+        db.itemModifier.findMany(),
       ]);
 
       return reply.send({
@@ -23,8 +30,8 @@ export async function menuRoutes(fastify: FastifyInstance) {
         itemModifiers: itemModifiersData,
       });
     } catch (error) {
-      console.error('Menu fetch error:', error);
-      return reply.status(500).send({ error: 'Failed to fetch menu' });
+      console.error("Menu fetch error:", error);
+      return reply.status(500).send({ error: "Failed to fetch menu" });
     }
   });
 }

@@ -1,18 +1,13 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "./schema.js";
+import { PrismaClient } from "@prisma/client";
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://user:password@localhost:6543/orderflow";
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is not set");
-}
+export const db =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ["query"],
+  });
 
-// For migrations
-export const migrationClient = postgres(connectionString, { max: 1 });
-
-// For queries
-const queryClient = postgres(connectionString);
-export const db = drizzle(queryClient, { schema });
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

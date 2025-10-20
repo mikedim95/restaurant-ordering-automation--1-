@@ -1,33 +1,16 @@
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import dotenv from "dotenv";
+import { db } from "./index.js";
 
-dotenv.config();
-
-async function main() {
+async function migrate() {
   console.log("Running migrations...");
 
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is not set");
-  }
-
-  // Create migration client with the correct connection string
-  const migrationClient = postgres(connectionString, { max: 1 });
-
-  const db = drizzle(migrationClient);
-
-  await migrate(db, { migrationsFolder: "./drizzle" });
+  // Add any custom migration logic here if needed
+  // For now, Prisma handles schema migrations automatically
 
   console.log("Migrations completed!");
-
-  await migrationClient.end();
+  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("Migration failed!");
-  console.error(err);
+migrate().catch((err) => {
+  console.error("Migration failed:", err);
   process.exit(1);
 });
