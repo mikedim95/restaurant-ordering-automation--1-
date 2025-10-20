@@ -43,8 +43,10 @@ model StoreMeta {
 }
 
 model Profile {
-  id           String        @id @db.Uuid
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   storeId      String        @db.Uuid
+  email        String        @unique @db.VarChar(255)
+  passwordHash String        @db.VarChar(255)
   role         Role
   displayName  String?       @db.VarChar(255)
   createdAt    DateTime      @default(now()) @db.Timestamp(6)
@@ -53,6 +55,7 @@ model Profile {
   store        Store         @relation(fields: [storeId], references: [id])
   waiterTables WaiterTable[]
 
+  @@index([storeId, role])
   @@map("profiles")
 }
 

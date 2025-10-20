@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcrypt";
 import { db } from "../db/index.js";
 import { signToken } from "../lib/jwt.js";
+import { ensureStore } from "../lib/store.js";
 
 const signinSchema = z.object({
   email: z.string().email(),
@@ -13,9 +14,11 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post("/auth/signin", async (request, reply) => {
     try {
       const body = signinSchema.parse(request.body);
+      const store = await ensureStore();
+      const email = body.email.toLowerCase();
 
-      const user = await db.profile.findUnique({
-        where: { email: body.email },
+      const user = await db.profile.findFirst({
+        where: { email, storeId: store.id },
       });
 
       if (!user) {
@@ -31,10 +34,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: "Invalid credentials" });
       }
 
+      const role = user.role === "MANAGER" ? "manager" : "waiter";
+
       const token = signToken({
         userId: user.id,
         email: user.email,
-        role: user.role,
+        role,
       });
 
       return reply.send({
@@ -42,7 +47,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         user: {
           id: user.id,
           email: user.email,
-          role: user.role,
+          role,
           displayName: user.displayName,
         },
       });
