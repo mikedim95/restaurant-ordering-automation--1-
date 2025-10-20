@@ -3,17 +3,19 @@
 
 type MQTTCallback = (message: any) => void;
 
-const VITE_MQTT_URL = import.meta.env.VITE_MQTT_URL || 'ws://localhost:1883';
+const VITE_MQTT_URL = import.meta.env.VITE_MQTT_URL || "ws://localhost:1883";
 const VITE_MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME;
 const VITE_MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD;
 const CLIENT_ID = `orderflow-frontend-${Math.random().toString(16).slice(2)}`;
-
+console.log("MQTT Client ID:", CLIENT_ID);
+console.log("MQTT Broker URL:", VITE_MQTT_URL);
+console.log("MQTT Username:", VITE_MQTT_USERNAME ? "***" : "(none)");
 class MockMQTTService {
   private subscribers: Map<string, MQTTCallback[]> = new Map();
   private connected = false;
 
   async connect() {
-    console.log('🔌 Mock MQTT connected');
+    console.log("🔌 Mock MQTT connected");
     this.connected = true;
   }
 
@@ -39,7 +41,7 @@ class MockMQTTService {
   disconnect() {
     this.connected = false;
     this.subscribers.clear();
-    console.log('🔌 [mock] MQTT disconnected');
+    console.log("🔌 [mock] MQTT disconnected");
   }
 
   isConnected() {
@@ -54,7 +56,7 @@ class RealMQTTService {
   async connect() {
     if (this.client) return;
     try {
-      const mqtt = await import('mqtt');
+      const mqtt = await import("mqtt");
       this.client = mqtt.connect(VITE_MQTT_URL, {
         clientId: CLIENT_ID,
         username: VITE_MQTT_USERNAME,
@@ -63,23 +65,25 @@ class RealMQTTService {
         reconnectPeriod: 1000,
       });
 
-      this.client.on('connect', () => {
-        console.log('🔌 MQTT connected to', VITE_MQTT_URL);
+      this.client.on("connect", () => {
+        console.log("🔌 MQTT connected to", VITE_MQTT_URL);
       });
 
-      this.client.on('message', (topic: string, payload: Uint8Array) => {
+      this.client.on("message", (topic: string, payload: Uint8Array) => {
         const str = new TextDecoder().decode(payload);
         let msg: any = str;
-        try { msg = JSON.parse(str); } catch {}
+        try {
+          msg = JSON.parse(str);
+        } catch {}
         const cbs = this.subscribers.get(topic) || [];
         cbs.forEach((cb) => cb(msg));
       });
 
-      this.client.on('error', (err: any) => {
-        console.error('MQTT error:', err?.message || err);
+      this.client.on("error", (err: any) => {
+        console.error("MQTT error:", err?.message || err);
       });
     } catch (e) {
-      console.warn('mqtt package not available; falling back to mock');
+      console.warn("mqtt package not available; falling back to mock");
       throw e;
     }
   }
@@ -92,7 +96,8 @@ class RealMQTTService {
   }
 
   publish(topic: string, message: any) {
-    const payload = typeof message === 'string' ? message : JSON.stringify(message);
+    const payload =
+      typeof message === "string" ? message : JSON.stringify(message);
     this.client?.publish(topic, payload, { qos: 1 });
   }
 

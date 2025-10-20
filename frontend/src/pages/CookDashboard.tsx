@@ -8,12 +8,14 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Order } from '@/types';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
+import { mqttService } from '@/lib/mqtt';
 
 export default function CookDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [storeSlug, setStoreSlug] = useState<string>('demo-cafe');
 
   useEffect(() => {
     if (!isAuthenticated() || user?.role !== 'cook') {
@@ -53,8 +55,39 @@ export default function CookDashboard() {
   };
 
   useEffect(() => {
-    load();
+    const init = async () => {
+      try {
+        const store = (await api.getStore()) as any;
+        if (store?.store?.slug) setStoreSlug(store.store.slug);
+      } catch {}
+      await load();
+    };
+    init();
   }, []);
+
+  // Live updates via MQTT: new orders (printing), ready events (from other devices/NodeMCU), accepted (multi-cook)
+  useEffect(() => {
+    let mounted = true;
+    mqttService.connect().then(() => {
+      if (!mounted) return;
+      mqttService.subscribe(`stores/${storeSlug}/printing`, () => {
+        load();
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, () => {
+        load();
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, () => {
+        load();
+      });
+    });
+    return () => {
+      mounted = false;
+      mqttService.unsubscribe(`stores/${storeSlug}/printing`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/accepted`);
+      mqttService.disconnect();
+    };
+  }, [storeSlug]);
 
   const accept = async (id: string) => {
     await api.updateOrderStatus(id, 'PREPARING');
