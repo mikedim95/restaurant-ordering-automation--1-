@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
+import { ModifierDialog } from "@/components/menu/ModifierDialog";
 import { Cart } from "@/components/menu/Cart";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -17,23 +18,38 @@ export default function TableMenu() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { addItem, clearCart } = useCartStore();
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [menuData, setMenuData] = useState<{
-    categories: any[];
+    categories: Array<{ id: string; title: string }>;
     items: MenuItem[];
     modifiers: any[];
     modifierOptions: any[];
     itemModifiers: any[];
   } | null>(null);
+  const [storeName, setStoreName] = useState<string>("Demo Café");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
 
   useEffect(() => {
     const fetchMenu = async () => {
       try {
         setLoading(true);
-        const data = await api.getMenu();
-        setMenuData(data as NonNullable<typeof menuData>);
+        const [storeRes, data] = await Promise.all([
+          api.getStore() as Promise<any>,
+          api.getMenu() as Promise<any>,
+        ]);
+        if (storeRes?.store?.name) setStoreName(storeRes.store.name);
+        // Normalize categories shape for tabs: keep API order
+        const categories = (data as any)?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
+        setMenuData({
+          categories,
+          items: (data as any)?.items || [],
+          modifiers: (data as any)?.modifiers || [],
+          modifierOptions: [],
+          itemModifiers: [],
+        });
         setError(null);
       } catch (err) {
         console.error("Failed to fetch menu:", err);
@@ -41,7 +57,7 @@ export default function TableMenu() {
         // Fallback to mock data if API fails
         const { MENU_ITEMS } = await import("@/lib/menuData");
         setMenuData({
-          categories: [],
+          categories: Array.from(new Set(MENU_ITEMS.map((i) => i.category))).map((name, idx) => ({ id: String(idx), title: name })),
           items: MENU_ITEMS,
           modifiers: [],
           modifierOptions: [],
@@ -55,66 +71,86 @@ export default function TableMenu() {
     fetchMenu();
   }, []);
 
-  const categories = menuData
-    ? ["All", ...Array.from(new Set(menuData.items.map((i) => i.category)))]
-    : ["All"];
+  const categories = menuData ? menuData.categories : [];
   const filteredItems = menuData
-    ? selectedCategory === "All"
+    ? selectedCategory === "all"
       ? menuData.items
-      : menuData.items.filter((i) => i.category === selectedCategory)
+      : menuData.items.filter((i: any) => i.categoryId === selectedCategory || i.category === categories.find(c => c.id === selectedCategory)?.title)
     : [];
 
   const handleAddItem = (item: MenuItem) => {
+    if (item.modifiers && item.modifiers.length > 0) {
+      setCustomizeItem(item);
+      setCustomizeOpen(true);
+      return;
+    }
     addItem({ item, quantity: 1, selectedModifiers: {} });
     toast({ title: "Added to cart", description: item.name });
   };
 
-  const handleCheckout = async () => {
+  const handleConfirmModifiers = (selected: Record<string, string>) => {
+    if (!customizeItem) return;
+    addItem({ item: customizeItem, quantity: 1, selectedModifiers: selected });
+    toast({ title: "Added to cart", description: customizeItem.name });
+    setCustomizeOpen(false);
+    setCustomizeItem(null);
+  };
+
+  const handleCheckout = async (note?: string) => {
     if (!tableId || !menuData) return;
 
     try {
       const cartItems = useCartStore.getState().items;
-      const totalCents = Math.round(useCartStore.getState().getTotal() * 100);
 
       const orderData = {
         tableId,
         items: cartItems.map((item) => ({
           itemId: item.item.id,
           quantity: item.quantity,
-          priceCents: Math.round(item.item.price * 100),
           modifiers: JSON.stringify(item.selectedModifiers),
         })),
-        totalCents,
-        note: "",
+        note: note ?? "",
       };
 
-      const response = (await api.createOrder(orderData)) as {
-        orderId: string;
-      };
+      const response = (await api.createOrder(orderData)) as any;
       clearCart();
-      navigate(`/order/${response.orderId}/thanks`);
+      const orderId = response?.order?.id || response?.orderId;
+      navigate(`/order/${orderId}/thanks`);
     } catch (err) {
       console.error("Failed to create order:", err);
       toast({
         title: "Error",
-        description: "Failed to place order. Please try again.",
+        description: (err as any)?.message || "Failed to place order. Please try again.",
       });
     }
   };
 
-  const handleCallWaiter = () => {
-    toast({
-      title: "Waiter called",
-      description: "A waiter will be with you shortly",
-    });
+  const handleCallWaiter = async () => {
+    if (!tableId) return;
+    try {
+      await api.callWaiter(tableId);
+      toast({
+        title: "Waiter called",
+        description: "A waiter will be with you shortly",
+      });
+    } catch (err: any) {
+      const msg = err?.message || '';
+      toast({
+        title: "Call failed",
+        description:
+          msg.includes('403') || msg.includes('whitelist')
+            ? "Device not allowed by IP whitelist. See ALLOWED_IPS in backend."
+            : msg || "Unable to call waiter.",
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-purple-600">Demo Café</h1>
+            <h1 className="text-2xl font-bold text-purple-600">{storeName}</h1>
             <p className="text-sm text-gray-500">Table {tableId}</p>
           </div>
           <div className="flex gap-2">
@@ -134,13 +170,22 @@ export default function TableMenu() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+          <Button
+            key="all"
+            variant={selectedCategory === 'all' ? 'default' : 'outline'}
+            onClick={() => setSelectedCategory('all')}
+            className="shrink-0"
+          >
+            All
+          </Button>
           {categories.map((cat) => (
             <Button
-              key={cat}
-              variant={selectedCategory === cat ? "default" : "outline"}
-              onClick={() => setSelectedCategory(cat)}
+              key={cat.id}
+              variant={selectedCategory === cat.id ? "default" : "outline"}
+              onClick={() => setSelectedCategory(cat.id)}
+              className="shrink-0"
             >
-              {cat}
+              {cat.title}
             </Button>
           ))}
         </div>
@@ -164,6 +209,12 @@ export default function TableMenu() {
       </div>
 
       <Cart onCheckout={handleCheckout} />
+      <ModifierDialog
+        open={customizeOpen}
+        item={customizeItem}
+        onClose={() => { setCustomizeOpen(false); setCustomizeItem(null); }}
+        onConfirm={handleConfirmModifiers}
+      />
     </div>
   );
 }

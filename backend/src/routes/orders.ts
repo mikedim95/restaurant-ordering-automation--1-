@@ -233,6 +233,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
         publishMessage(`stores/${STORE_SLUG}/printing`, {
           orderId: createdOrder.id,
+          tableId: createdOrder.tableId,
           tableLabel: table.label,
           createdAt: createdOrder.createdAt,
           totalCents: createdOrder.totalCents,

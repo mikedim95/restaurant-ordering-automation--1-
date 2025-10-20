@@ -17,6 +17,8 @@ export interface Modifier {
   name: string;
   options: ModifierOption[];
   required?: boolean;
+  minSelect?: number;
+  maxSelect?: number | null;
 }
 
 export interface ModifierOption {

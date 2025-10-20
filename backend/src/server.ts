@@ -11,7 +11,9 @@ import { getMqttClient } from './lib/mqtt.js';
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
-const CORS_ORIGINS = process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'];
+const CORS_ENV = process.env.CORS_ORIGINS;
+const CORS_ORIGINS = CORS_ENV ? CORS_ENV.split(',') : ['http://localhost:5173'];
+const ALLOW_ALL_CORS = CORS_ENV === '*' || CORS_ORIGINS.includes('*');
 
 const fastify = Fastify({
   logger: true,
@@ -20,7 +22,7 @@ const fastify = Fastify({
 
 // CORS
 await fastify.register(cors, {
-  origin: CORS_ORIGINS,
+  origin: ALLOW_ALL_CORS ? true : CORS_ORIGINS,
   credentials: true,
 });
 

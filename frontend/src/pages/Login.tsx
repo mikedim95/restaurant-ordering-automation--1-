@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { useAuthStore } from '@/store/authStore';
+import { api } from '@/lib/api';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 export default function Login() {
@@ -14,16 +15,18 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Mock login
-    if (email.includes('waiter')) {
-      login({ id: '1', email, role: 'waiter', displayName: 'Waiter 1' }, 'mock-token');
-      navigate('/waiter');
-    } else if (email.includes('manager')) {
-      login({ id: '2', email, role: 'manager', displayName: 'Manager' }, 'mock-token');
-      navigate('/manager');
+    try {
+      const { accessToken, user } = await api.signIn(email, password);
+      login(user, accessToken);
+      if (user.role === 'manager') {
+        navigate('/manager');
+      } else {
+        navigate('/waiter');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Login failed');
     }
   };
 

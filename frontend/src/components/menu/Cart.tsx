@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCartStore } from '@/store/cartStore';
 import { Button } from '../ui/button';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Textarea } from '../ui/textarea';
 
-export const Cart = ({ onCheckout }: { onCheckout: () => void }) => {
+export const Cart = ({ onCheckout }: { onCheckout: (note?: string) => void }) => {
   const { t } = useTranslation();
   const { items, removeItem, getTotal } = useCartStore();
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [note, setNote] = useState("");
 
   return (
+    <>
     <Sheet>
       <SheetTrigger asChild>
         <Button className="fixed bottom-4 right-4 rounded-full h-14 w-14 shadow-lg">
@@ -46,7 +52,7 @@ export const Cart = ({ onCheckout }: { onCheckout: () => void }) => {
                   <span>{t('menu.total')}</span>
                   <span>€{getTotal().toFixed(2)}</span>
                 </div>
-                <Button className="w-full" onClick={onCheckout}>
+                <Button className="w-full" onClick={() => setReviewOpen(true)}>
                   {t('menu.checkout')}
                 </Button>
               </div>
@@ -55,5 +61,39 @@ export const Cart = ({ onCheckout }: { onCheckout: () => void }) => {
         </div>
       </SheetContent>
     </Sheet>
+
+    <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Review your order</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+          {items.map((cartItem, idx) => (
+            <div key={idx} className="flex items-start gap-3 pb-3 border-b">
+              <img src={cartItem.item.image} alt={cartItem.item.name} className="w-14 h-14 rounded object-cover" />
+              <div className="flex-1">
+                <div className="font-medium">{cartItem.item.name} × {cartItem.quantity}</div>
+                <div className="text-xs text-gray-500">
+                  {Object.entries(cartItem.selectedModifiers || {}).map(([modId, optId]) => {
+                    const mod = cartItem.item.modifiers?.find(m => m.id === modId);
+                    const opt = mod?.options.find(o => o.id === optId);
+                    return <div key={modId}>{mod?.name}: {opt?.label}</div>;
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div>
+            <label className="block text-sm font-medium mb-2">Order note (optional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g., No onions on the salad" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setReviewOpen(false)}>Back</Button>
+          <Button onClick={() => { setReviewOpen(false); onCheckout(note || undefined); }}>Place order</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };

@@ -1,16 +1,38 @@
+import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card } from '../ui/card';
 import { QR_MOCKUP } from '@/lib/mockData';
 import { ExternalLink, Smartphone } from 'lucide-react';
 import { Button } from '../ui/button';
-
-const demoStores = [
-  { slug: 'demo-cafe', name: 'Demo Café', desc: 'Coffee & Pastries', url: window.location.origin + '/demo/store/demo-cafe' },
-  { slug: 'demo-bistro', name: 'Demo Bistro', desc: 'Fine Dining', url: window.location.origin + '/demo/store/demo-bistro' },
-  { slug: 'demo-bar', name: 'Demo Bar', desc: 'Cocktails & Drinks', url: window.location.origin + '/demo/store/demo-bar' },
-];
+import { api } from '@/lib/api';
 
 export const DemoQRGrid = () => {
+  const BASE_ORIGIN = `http://192.168.10.170:8080`;
+  const [liveUrl, setLiveUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = (await api.getTables()) as any;
+        const actives = (data?.tables || []).filter((t: any) => t.active);
+        if (actives.length > 0) {
+          const random = actives[Math.floor(Math.random() * actives.length)];
+          if (mounted) setLiveUrl(`${BASE_ORIGIN}/table/${random.id}`);
+        }
+      } catch (e) {
+        // Fallback silently; keep demo links
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const cards: Array<{ key: string; name: string; desc: string; link: string | null; ready?: boolean }> = [
+    { key: 'demo-cafe', name: 'Demo Café', desc: 'Coffee & Pastries', link: `${BASE_ORIGIN}/demo/store/demo-cafe`, ready: true },
+    { key: 'live-store', name: 'Live Store', desc: 'Random Table (Real Backend)', link: liveUrl, ready: !!liveUrl },
+    { key: 'demo-bar', name: 'Demo Bar', desc: 'Cocktails & Drinks', link: `${BASE_ORIGIN}/demo/store/demo-bar`, ready: true },
+  ];
+
   return (
     <div id="demo-qr" className="py-24 bg-gradient-to-br from-gray-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4">
@@ -27,17 +49,38 @@ export const DemoQRGrid = () => {
           </p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
-          {demoStores.map((store) => (
-            <Card key={store.slug} className="p-8 text-center hover:shadow-2xl transition-all hover:-translate-y-2 bg-white">
-              <h3 className="text-2xl font-bold mb-2 text-gray-900">{store.name}</h3>
-              <p className="text-purple-600 font-medium mb-6">{store.desc}</p>
-              <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-6 rounded-2xl inline-block mb-6 border-2 border-purple-200">
-                <QRCodeSVG value={store.url} size={220} level="H" includeMargin />
+        <div className="grid md:grid-cols-3 gap-8 mb-16 items-stretch">
+          {cards.map((card) => (
+            <Card key={card.key} className="p-8 text-center bg-white hover:shadow-2xl transition-shadow h-full flex flex-col">
+              <h3 className="text-2xl font-bold mb-2 text-gray-900">{card.name}</h3>
+              <p className="text-purple-600 font-medium mb-6">{card.desc}</p>
+              <div className="flex-1 flex items-center justify-center mb-6">
+                <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-6 rounded-2xl border-2 border-purple-200 min-w-[240px]">
+                  {card.link ? (
+                    <QRCodeSVG key={card.link} value={card.link} size={220} level="H" includeMargin />
+                  ) : (
+                    <div className="text-sm text-purple-500 px-6 py-10">Fetching a table…</div>
+                  )}
+                </div>
               </div>
-              <Button variant="outline" className="w-full gap-2" onClick={() => window.open(store.url, '_blank')}>
-                <ExternalLink className="h-4 w-4" />
-                Open Demo
+              <Button
+                asChild={!!card.link}
+                variant="outline"
+                className="w-full gap-2 mt-auto"
+                disabled={!card.link}
+                onClick={!card.link ? undefined : undefined}
+              >
+                {card.link ? (
+                  <a href={card.link} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    Open Demo
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-2 opacity-70">
+                    <ExternalLink className="h-4 w-4" />
+                    Open Demo
+                  </span>
+                )}
               </Button>
             </Card>
           ))}
