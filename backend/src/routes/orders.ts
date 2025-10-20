@@ -1,29 +1,97 @@
 import { FastifyInstance } from "fastify";
+import { Prisma, OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { ipWhitelistMiddleware } from "../middleware/ipWhitelist.js";
 import { publishMessage } from "../lib/mqtt.js";
+import { ensureStore, STORE_SLUG } from "../lib/store.js";
 
-const STORE_SLUG = process.env.STORE_SLUG || "demo-cafe";
+const modifierSelectionSchema = z.record(z.string());
 
 const createOrderSchema = z.object({
   tableId: z.string().uuid(),
-  items: z.array(
-    z.object({
-      itemId: z.string().uuid(),
-      quantity: z.number().int().positive(),
-      priceCents: z.number().int(),
-      modifiers: z.string().optional(),
-    })
-  ),
-  totalCents: z.number().int(),
-  note: z.string().optional(),
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().uuid(),
+        quantity: z.number().int().positive(),
+        modifiers: z.union([z.string(), modifierSelectionSchema]).optional(),
+      })
+    )
+    .min(1),
+  note: z.string().max(500).optional(),
 });
 
 const updateStatusSchema = z.object({
-  status: z.enum(["PLACED", "PREPARING", "READY", "SERVED", "CANCELLED"]),
+  status: z.nativeEnum(OrderStatus),
 });
+
+const callWaiterSchema = z.object({
+  tableId: z.string().uuid(),
+});
+
+type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: {
+    table: true;
+    orderItems: {
+      include: {
+        orderItemOptions: true;
+      };
+    };
+  };
+}>;
+
+function serializeOrder(order: OrderWithRelations) {
+  return {
+    id: order.id,
+    tableId: order.tableId,
+    tableLabel: order.table?.label ?? "Unknown",
+    status: order.status,
+    note: order.note,
+    totalCents: order.totalCents,
+    total: order.totalCents / 100,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    items: order.orderItems.map((orderItem) => ({
+      id: orderItem.id,
+      itemId: orderItem.itemId,
+      title: orderItem.titleSnapshot,
+      unitPriceCents: orderItem.unitPriceCents,
+      unitPrice: orderItem.unitPriceCents / 100,
+      quantity: orderItem.quantity,
+      modifiers: orderItem.orderItemOptions.map((option) => ({
+        id: option.id,
+        modifierId: option.modifierId,
+        modifierOptionId: option.modifierOptionId,
+        title: option.titleSnapshot,
+        priceDeltaCents: option.priceDeltaCents,
+        priceDelta: option.priceDeltaCents / 100,
+      })),
+    })),
+  };
+}
+
+function parseModifiers(value?: unknown) {
+  if (!value) {
+    return {} as Record<string, string>;
+  }
+
+  if (typeof value === "string") {
+    if (value.trim().length === 0) {
+      return {} as Record<string, string>;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return modifierSelectionSchema.parse(parsed);
+    } catch (error) {
+      throw new Error("Invalid modifiers payload");
+    }
+  }
+
+  return modifierSelectionSchema.parse(value);
+}
 
 export async function orderRoutes(fastify: FastifyInstance) {
   // Create order (IP whitelisted)
@@ -35,46 +103,149 @@ export async function orderRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const body = createOrderSchema.parse(request.body);
+        const store = await ensureStore();
 
-        // Insert order
-        const order = await db.order.create({
-          data: {
-            tableId: body.tableId,
-            status: "PLACED",
-            totalCents: body.totalCents,
-            note: body.note,
+        const table = await db.table.findFirst({
+          where: { id: body.tableId, storeId: store.id },
+        });
+
+        if (!table) {
+          return reply.status(404).send({ error: "Table not found" });
+        }
+
+        const itemIds = body.items.map((item) => item.itemId);
+        const items = await db.item.findMany({
+          where: {
+            storeId: store.id,
+            id: { in: itemIds },
+            isAvailable: true,
+          },
+          include: {
+            itemModifiers: {
+              include: {
+                modifier: {
+                  include: {
+                    modifierOptions: true,
+                  },
+                },
+              },
+            },
           },
         });
 
-        // Insert order items
-        const itemsToInsert = body.items.map((item) => ({
-          orderId: order.id,
-          itemId: item.itemId,
-          quantity: item.quantity,
-          priceCents: item.priceCents,
-          modifiers: item.modifiers,
-        }));
+        const itemMap = new Map(items.map((item) => [item.id, item]));
 
-        await db.orderItem.createMany({
-          data: itemsToInsert,
+        let orderTotalCents = 0;
+        const orderItemsToCreate: Prisma.OrderItemCreateWithoutOrderInput[] = [];
+
+        for (const item of body.items) {
+          const dbItem = itemMap.get(item.itemId);
+
+          if (!dbItem) {
+            return reply.status(400).send({ error: "Item not available" });
+          }
+
+          const selections = parseModifiers(item.modifiers);
+          const modifierLinks = new Map(
+            dbItem.itemModifiers.map((link) => [link.modifierId, link])
+          );
+
+          let unitPriceCents = dbItem.priceCents;
+          const orderItemOptions: Prisma.OrderItemOptionCreateWithoutOrderItemInput[] = [];
+
+          for (const [modifierId, optionId] of Object.entries(selections)) {
+            const link = modifierLinks.get(modifierId);
+
+            if (!link) {
+              return reply
+                .status(400)
+                .send({ error: "Modifier not allowed for item" });
+            }
+
+            const modifier = link.modifier;
+            const option = modifier.modifierOptions.find((opt) => opt.id === optionId);
+
+            if (!option) {
+              return reply.status(400).send({ error: "Modifier option not found" });
+            }
+
+            unitPriceCents += option.priceDeltaCents;
+            orderItemOptions.push({
+              modifier: {
+                connect: { id: modifier.id },
+              },
+              modifierOption: {
+                connect: { id: option.id },
+              },
+              titleSnapshot: `${modifier.title}: ${option.title}`,
+              priceDeltaCents: option.priceDeltaCents,
+            });
+          }
+
+          const requiredModifiersMissing = dbItem.itemModifiers.some((link) => {
+            const modifier = link.modifier;
+            const minRequired = link.isRequired || modifier.minSelect > 0 ? 1 : modifier.minSelect;
+            if (!minRequired) {
+              return false;
+            }
+            return !selections[link.modifierId];
+          });
+
+          if (requiredModifiersMissing) {
+            return reply.status(400).send({ error: "Missing required modifiers" });
+          }
+
+          orderTotalCents += unitPriceCents * item.quantity;
+
+          orderItemsToCreate.push({
+            item: {
+              connect: { id: dbItem.id },
+            },
+            titleSnapshot: dbItem.title,
+            unitPriceCents,
+            quantity: item.quantity,
+            orderItemOptions: {
+              create: orderItemOptions,
+            },
+          });
+        }
+
+        const createdOrder = await db.order.create({
+          data: {
+            storeId: store.id,
+            tableId: table.id,
+            status: OrderStatus.PLACED,
+            totalCents: orderTotalCents,
+            note: body.note,
+            orderItems: {
+              create: orderItemsToCreate,
+            },
+          },
+          include: {
+            table: true,
+            orderItems: {
+              include: {
+                orderItemOptions: true,
+              },
+            },
+          },
         });
 
-        // Get table label for printing
-        const table = await db.table.findUnique({
-          where: { id: body.tableId },
-        });
-
-        // Publish to printing topic
         publishMessage(`stores/${STORE_SLUG}/printing`, {
-          orderId: order.id,
-          tableLabel: table?.label || "Unknown",
-          createdAt: order.createdAt,
-          items: body.items,
-          totalCents: body.totalCents,
-          note: body.note,
+          orderId: createdOrder.id,
+          tableLabel: table.label,
+          createdAt: createdOrder.createdAt,
+          totalCents: createdOrder.totalCents,
+          note: createdOrder.note,
+          items: createdOrder.orderItems.map((orderItem) => ({
+            title: orderItem.titleSnapshot,
+            quantity: orderItem.quantity,
+            unitPriceCents: orderItem.unitPriceCents,
+            modifiers: orderItem.orderItemOptions,
+          })),
         });
 
-        return reply.status(201).send({ orderId: order.id });
+        return reply.status(201).send({ order: serializeOrder(createdOrder) });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply
@@ -95,29 +266,66 @@ export async function orderRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const user = (request as any).user;
-        const query: any = request.query;
-
-        let whereClause: any = {};
-        if (query.status) {
-          whereClause.status = query.status;
-        }
-
-        // Waiters only see orders for their assigned tables
-        if (user.role === "waiter") {
-          // TODO: Join with waiter_tables to filter
-        }
+        const store = await ensureStore();
+        const query = z
+          .object({ status: z.nativeEnum(OrderStatus).optional() })
+          .parse(request.query ?? {});
 
         const ordersData = await db.order.findMany({
-          where: whereClause,
-          orderBy: { createdAt: "desc" },
+          where: {
+            storeId: store.id,
+            ...(query.status ? { status: query.status } : {}),
+          },
+          orderBy: { placedAt: "desc" },
           take: 100,
+          include: {
+            table: true,
+            orderItems: {
+              include: {
+                orderItemOptions: true,
+              },
+            },
+          },
         });
 
-        return reply.send({ orders: ordersData });
+        return reply.send({ orders: ordersData.map(serializeOrder) });
       } catch (error) {
         console.error("Get orders error:", error);
         return reply.status(500).send({ error: "Failed to fetch orders" });
+      }
+    }
+  );
+
+  fastify.get(
+    "/orders/:id",
+    {
+      preHandler: [authMiddleware],
+    },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        const store = await ensureStore();
+
+        const order = await db.order.findFirst({
+          where: { id, storeId: store.id },
+          include: {
+            table: true,
+            orderItems: {
+              include: {
+                orderItemOptions: true,
+              },
+            },
+          },
+        });
+
+        if (!order) {
+          return reply.status(404).send({ error: "Order not found" });
+        }
+
+        return reply.send({ order: serializeOrder(order) });
+      } catch (error) {
+        console.error("Get order error:", error);
+        return reply.status(500).send({ error: "Failed to fetch order" });
       }
     }
   );
@@ -132,27 +340,39 @@ export async function orderRoutes(fastify: FastifyInstance) {
       try {
         const { id } = request.params as { id: string };
         const body = updateStatusSchema.parse(request.body);
+        const store = await ensureStore();
 
-        const order = await db.order.update({
-          where: { id },
-          data: { status: body.status, updatedAt: new Date() },
+        const existing = await db.order.findFirst({
+          where: { id, storeId: store.id },
         });
 
-        if (!order) {
+        if (!existing) {
           return reply.status(404).send({ error: "Order not found" });
         }
 
-        // If status is READY, publish to customer notification topic
-        if (body.status === "READY") {
-          publishMessage(`stores/${STORE_SLUG}/tables/${order.tableId}/ready`, {
-            orderId: order.id,
-            tableId: order.tableId,
-            status: "READY",
+        const updatedOrder = await db.order.update({
+          where: { id },
+          data: { status: body.status, updatedAt: new Date() },
+          include: {
+            table: true,
+            orderItems: {
+              include: {
+                orderItemOptions: true,
+              },
+            },
+          },
+        });
+
+        if (body.status === OrderStatus.READY) {
+          publishMessage(`stores/${STORE_SLUG}/tables/${updatedOrder.tableId}/ready`, {
+            orderId: updatedOrder.id,
+            tableId: updatedOrder.tableId,
+            status: OrderStatus.READY,
             ts: new Date().toISOString(),
           });
         }
 
-        return reply.send({ order });
+        return reply.send({ order: serializeOrder(updatedOrder) });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply
@@ -175,9 +395,16 @@ export async function orderRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const body = z
-          .object({ tableId: z.string().uuid() })
-          .parse(request.body);
+        const body = callWaiterSchema.parse(request.body);
+        const store = await ensureStore();
+
+        const table = await db.table.findFirst({
+          where: { id: body.tableId, storeId: store.id },
+        });
+
+        if (!table) {
+          return reply.status(404).send({ error: "Table not found" });
+        }
 
         publishMessage(`stores/${STORE_SLUG}/tables/${body.tableId}/call`, {
           tableId: body.tableId,

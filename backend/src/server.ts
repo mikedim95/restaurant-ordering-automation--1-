@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { authRoutes } from './routes/auth.js';
 import { menuRoutes } from './routes/menu.js';
 import { orderRoutes } from './routes/orders.js';
+import { storeRoutes } from './routes/store.js';
+import { waiterTableRoutes } from './routes/waiterTables.js';
 import { getMqttClient } from './lib/mqtt.js';
 
 dotenv.config();
@@ -29,8 +31,10 @@ fastify.get('/health', async (request, reply) => {
 
 // Register routes
 await fastify.register(authRoutes);
+await fastify.register(storeRoutes);
 await fastify.register(menuRoutes);
 await fastify.register(orderRoutes);
+await fastify.register(waiterTableRoutes);
 
 // Initialize MQTT
 getMqttClient();
