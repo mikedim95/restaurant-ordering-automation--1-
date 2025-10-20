@@ -1,18 +1,255 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Store {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug            String           @unique @db.VarChar(100)
+  name            String           @db.VarChar(255)
+  settingsJson    Json?
+  createdAt       DateTime         @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamp(6)
+  auditLogs       AuditLog[]
+  categories      Category[]
+  itemModifiers   ItemModifier[]
+  items           Item[]
+  modifierOptions ModifierOption[]
+  modifiers       Modifier[]
+  orders          Order[]
+  profiles        Profile[]
+  storeMeta       StoreMeta?
+  tables          Table[]
+  waiterTables    WaiterTable[]
+
+  @@map("stores")
+}
+
+model StoreMeta {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String   @unique @db.Uuid
+  currencyCode String   @default("EUR") @db.VarChar(3)
+  locale       String   @default("en") @db.VarChar(10)
+  createdAt    DateTime @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @db.Timestamp(6)
+  store        Store    @relation(fields: [storeId], references: [id])
+
+  @@map("store_meta")
+}
+
+model Profile {
+  id           String        @id @db.Uuid
+  storeId      String        @db.Uuid
+  role         Role
+  displayName  String?       @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime      @updatedAt @db.Timestamp(6)
+  auditLogs    AuditLog[]
+  store        Store         @relation(fields: [storeId], references: [id])
+  waiterTables WaiterTable[]
+
+  @@map("profiles")
+}
+
+model Table {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String        @db.Uuid
+  label        String        @db.VarChar(50)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime      @updatedAt @db.Timestamp(6)
+  orders       Order[]
+  store        Store         @relation(fields: [storeId], references: [id])
+  waiterTables WaiterTable[]
+
+  @@unique([storeId, label])
+  @@map("tables")
+}
+
+model WaiterTable {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId   String   @db.Uuid
+  waiterId  String   @db.Uuid
+  tableId   String   @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @db.Timestamp(6)
+  store     Store    @relation(fields: [storeId], references: [id])
+  table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  waiter    Profile  @relation(fields: [waiterId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, waiterId, tableId])
+  @@index([storeId, waiterId])
+  @@index([storeId, tableId])
+  @@map("waiter_tables")
+}
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId   String   @db.Uuid
+  slug      String   @db.VarChar(100)
+  title     String   @db.VarChar(255)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @db.Timestamp(6)
+  store     Store    @relation(fields: [storeId], references: [id])
+  items     Item[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, sortOrder])
+  @@map("categories")
+}
+
+model Item {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId       String         @db.Uuid
+  categoryId    String         @db.Uuid
+  slug          String         @db.VarChar(100)
+  title         String         @db.VarChar(255)
+  description   String?
+  priceCents    Int
+  isAvailable   Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime       @updatedAt @db.Timestamp(6)
+  itemModifiers ItemModifier[]
+  category      Category       @relation(fields: [categoryId], references: [id])
+  store         Store          @relation(fields: [storeId], references: [id])
+  orderItems    OrderItem[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, categoryId, sortOrder])
+  @@index([storeId, isAvailable])
+  @@map("items")
+}
+
+model Modifier {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String            @db.Uuid
+  slug             String            @db.VarChar(100)
+  title            String            @db.VarChar(255)
+  minSelect        Int               @default(0)
+  maxSelect        Int?
+  createdAt        DateTime          @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamp(6)
+  itemModifiers    ItemModifier[]
+  modifierOptions  ModifierOption[]
+  store            Store             @relation(fields: [storeId], references: [id])
+  orderItemOptions OrderItemOption[]
+
+  @@unique([storeId, slug])
+  @@map("modifiers")
+}
+
+model ModifierOption {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String            @db.Uuid
+  modifierId       String            @db.Uuid
+  slug             String            @db.VarChar(100)
+  title            String            @db.VarChar(255)
+  priceDeltaCents  Int               @default(0)
+  sortOrder        Int               @default(0)
+  createdAt        DateTime          @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamp(6)
+  modifier         Modifier          @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  store            Store             @relation(fields: [storeId], references: [id])
+  orderItemOptions OrderItemOption[]
+
+  @@unique([modifierId, slug])
+  @@index([modifierId, sortOrder])
+  @@map("modifier_options")
+}
+
+model ItemModifier {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId    String   @db.Uuid
+  itemId     String   @db.Uuid
+  modifierId String   @db.Uuid
+  isRequired Boolean  @default(false)
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
+  updatedAt  DateTime @updatedAt @db.Timestamp(6)
+  item       Item     @relation(fields: [itemId], references: [id])
+  modifier   Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  store      Store    @relation(fields: [storeId], references: [id])
+
+  @@unique([itemId, modifierId])
+  @@map("item_modifiers")
+}
+
+model Order {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId    String      @db.Uuid
+  tableId    String      @db.Uuid
+  status     OrderStatus @default(PLACED)
+  note       String?
+  totalCents Int
+  placedAt   DateTime    @default(now()) @db.Timestamp(6)
+  createdAt  DateTime    @default(now()) @db.Timestamp(6)
+  updatedAt  DateTime    @updatedAt @db.Timestamp(6)
+  orderItems OrderItem[]
+  store      Store       @relation(fields: [storeId], references: [id])
+  table      Table       @relation(fields: [tableId], references: [id])
+
+  @@index([storeId, status, placedAt(sort: Desc)])
+  @@index([storeId, tableId, placedAt(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId          String            @db.Uuid
+  itemId           String            @db.Uuid
+  titleSnapshot    String            @db.VarChar(255)
+  unitPriceCents   Int
+  quantity         Int               @default(1)
+  createdAt        DateTime          @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamp(6)
+  orderItemOptions OrderItemOption[]
+  item             Item              @relation(fields: [itemId], references: [id])
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model OrderItemOption {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderItemId      String         @db.Uuid
+  modifierId       String         @db.Uuid
+  modifierOptionId String         @db.Uuid
+  titleSnapshot    String         @db.VarChar(255)
+  priceDeltaCents  Int            @default(0)
+  createdAt        DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime       @updatedAt @db.Timestamp(6)
+  modifier         Modifier       @relation(fields: [modifierId], references: [id])
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@map("order_item_options")
+}
+
+model AuditLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String   @db.Uuid
+  actorProfileId String?  @db.Uuid
+  action         String   @db.VarChar(100)
+  entity         String   @db.VarChar(100)
+  entityId       String   @db.Uuid
+  diff           Json?
+  ts             DateTime @default(now()) @db.Timestamp(6)
+  actorProfile   Profile? @relation(fields: [actorProfileId], references: [id])
+  store          Store    @relation(fields: [storeId], references: [id])
+
+  @@index([storeId, ts(sort: Desc)])
+  @@map("audit_logs")
 }
 
 enum Role {
-  waiter
-  manager
+  WAITER
+  MANAGER
 }
 
 enum OrderStatus {
@@ -21,143 +258,4 @@ enum OrderStatus {
   READY
   SERVED
   CANCELLED
-}
-
-model StoreMeta {
-  id       String   @id @default(uuid()) @db.Uuid
-  slug     String   @unique @db.VarChar(100)
-  name     String   @db.VarChar(255)
-  currency String   @default("EUR") @db.VarChar(3)
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  @@map("store_meta")
-}
-
-model Profile {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique @db.VarChar(255)
-  passwordHash String   @db.Text
-  role         Role
-  displayName  String?  @db.VarChar(255)
-  createdAt    DateTime @default(now()) @db.Timestamp(6)
-
-  waiterTables WaiterTable[]
-
-  @@map("profiles")
-}
-
-model Table {
-  id        String   @id @default(uuid()) @db.Uuid
-  label     String   @unique @db.VarChar(50)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  waiterTables WaiterTable[]
-  orders       Order[]
-
-  @@map("tables")
-}
-
-model WaiterTable {
-  waiterId String
-  tableId  String @db.Uuid
-
-  waiter Profile @relation(fields: [waiterId], references: [id], onDelete: Cascade)
-  table  Table   @relation(fields: [tableId], references: [id], onDelete: Cascade)
-
-  @@id([waiterId, tableId])
-  @@map("waiter_tables")
-}
-
-model Category {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique @db.VarChar(255)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  items Item[]
-
-  @@map("categories")
-}
-
-model Item {
-  id          String   @id @default(uuid()) @db.Uuid
-  categoryId  String   @db.Uuid
-  name        String   @unique @db.VarChar(255)
-  description String?  @db.Text
-  priceCents  Int
-  imageUrl    String?  @db.Text
-  available   Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now()) @db.Timestamp(6)
-
-  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  itemModifiers ItemModifier[]
-  orderItems     OrderItem[]
-
-  @@map("items")
-}
-
-model Modifier {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique @db.VarChar(255)
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  modifierOptions ModifierOption[]
-  itemModifiers   ItemModifier[]
-
-  @@map("modifiers")
-}
-
-model ModifierOption {
-  id              String   @id @default(uuid()) @db.Uuid
-  modifierId      String   @db.Uuid
-  label           String   @db.VarChar(255)
-  priceDeltaCents Int      @default(0)
-  createdAt       DateTime @default(now()) @db.Timestamp(6)
-
-  modifier Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
-
-  @@unique([modifierId, label])
-  @@map("modifier_options")
-}
-
-model ItemModifier {
-  itemId     String @db.Uuid
-  modifierId String @db.Uuid
-
-  item     Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  modifier Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
-
-  @@id([itemId, modifierId])
-  @@map("item_modifiers")
-}
-
-model Order {
-  id         String      @id @default(uuid()) @db.Uuid
-  tableId    String      @db.Uuid
-  status     OrderStatus @default(PLACED)
-  totalCents Int
-  note       String?     @db.Text
-  createdAt  DateTime    @default(now()) @db.Timestamp(6)
-  updatedAt  DateTime    @default(now()) @db.Timestamp(6)
-
-  table      Table       @relation(fields: [tableId], references: [id])
-  orderItems OrderItem[]
-
-  @@map("orders")
-}
-
-model OrderItem {
-  id         String  @id @default(uuid()) @db.Uuid
-  orderId    String  @db.Uuid
-  itemId     String  @db.Uuid
-  quantity   Int
-  priceCents Int
-  modifiers  String? @db.Text
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  item  Item  @relation(fields: [itemId], references: [id])
-
-  @@map("order_items")
 }
