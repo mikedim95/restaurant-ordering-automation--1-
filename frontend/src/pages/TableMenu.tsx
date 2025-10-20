@@ -115,7 +115,9 @@ export default function TableMenu() {
       const response = (await api.createOrder(orderData)) as any;
       clearCart();
       const orderId = response?.order?.id || response?.orderId;
-      navigate(`/order/${orderId}/thanks`);
+      // pass tableId so the thanks page can subscribe to the ready topic
+      const params = new URLSearchParams({ tableId });
+      navigate(`/order/${orderId}/thanks?${params.toString()}`);
     } catch (err) {
       console.error("Failed to create order:", err);
       toast({

@@ -7,7 +7,22 @@ import { Button } from '../ui/button';
 import { api } from '@/lib/api';
 
 export const DemoQRGrid = () => {
-  const BASE_ORIGIN = `http://192.168.10.170:8080`;
+  const getBaseOrigin = () => {
+    const envOrigin = (import.meta as any).env?.VITE_PUBLIC_BASE_ORIGIN as
+      | string
+      | undefined;
+    if (envOrigin && envOrigin.trim().length > 0) {
+      return envOrigin.replace(/\/$/, "");
+    }
+    if (typeof window !== "undefined") {
+      const { protocol, hostname, port } = window.location;
+      const portPart = port ? `:${port}` : "";
+      return `${protocol}//${hostname}${portPart}`;
+    }
+    return "http://localhost:8080";
+  };
+
+  const BASE_ORIGIN = getBaseOrigin();
   const [liveUrl, setLiveUrl] = useState<string | null>(null);
 
   useEffect(() => {
