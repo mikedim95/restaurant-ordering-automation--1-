@@ -18,7 +18,9 @@ export default function WaiterDashboard() {
   const { user, logout, isAuthenticated } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [assignedTableIds, setAssignedTableIds] = useState<Set<string>>(new Set());
+  const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
   const assignedKey = Array.from(assignedTableIds).sort().join(',');
+  const [storeSlug, setStoreSlug] = useState<string>('demo-cafe');
 
   useEffect(() => {
     if (!isAuthenticated() || user?.role !== 'waiter') {
@@ -52,7 +54,10 @@ export default function WaiterDashboard() {
             selectedModifiers: {},
           })),
         })) as Order[];
-        setOrders(mapped);
+        const filtered = user?.role === 'waiter'
+          ? mapped.filter((o) => assignedTableIds.has(o.tableId))
+          : mapped;
+        setOrders(filtered);
       } catch (err) {
         console.error('Failed to fetch orders', err);
       }
@@ -62,6 +67,8 @@ export default function WaiterDashboard() {
   useEffect(() => {
     const fetchAssignments = async () => {
       try {
+        const store = (await api.getStore()) as any;
+        if (store?.store?.slug) setStoreSlug(store.store.slug);
         const tablesRes = (await api.getTables()) as any;
         const myId = user?.id;
         const next = new Set<string>();
@@ -74,6 +81,7 @@ export default function WaiterDashboard() {
         const curr = assignedTableIds;
         const same = curr.size === next.size && Array.from(next).every((id) => curr.has(id));
         if (!same) setAssignedTableIds(next);
+        setAssignmentsLoaded(true);
       } catch (e) {
         // ignore if fails
       }
@@ -88,34 +96,41 @@ export default function WaiterDashboard() {
 
   // Setup MQTT subscriptions; rewire when assignments change
   useEffect(() => {
+    if (!assignmentsLoaded && user?.role === 'waiter') return;
     fetchOrders();
     mqttService.connect().then(() => {
-      mqttService.subscribe(`stores/demo-cafe/printing`, (msg) => {
+      mqttService.subscribe(`stores/${storeSlug}/printing`, (msg) => {
         if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
         toast({ title: 'New order', description: `Table ${msg.tableId}` });
         fetchOrders();
       });
-      mqttService.subscribe(`stores/demo-cafe/tables/+/ready`, (msg) => {
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, (msg) => {
+        if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
+        toast({ title: 'Order accepted', description: `Table ${msg.tableId}` });
+        fetchOrders();
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, (msg) => {
         if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
         toast({ title: 'Order ready', description: `Table ${msg.tableId}` });
         fetchOrders();
       });
-      mqttService.subscribe(`stores/demo-cafe/tables/+/call`, (msg) => {
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/call`, (msg) => {
         if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
         toast({ title: 'Waiter called', description: `Table ${msg.tableId}` });
       });
     });
 
     return () => {
-      mqttService.unsubscribe(`stores/demo-cafe/printing`);
-      mqttService.unsubscribe(`stores/demo-cafe/tables/+/ready`);
-      mqttService.unsubscribe(`stores/demo-cafe/tables/+/call`);
+      mqttService.unsubscribe(`stores/${storeSlug}/printing`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/accepted`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/call`);
       // Keep connection for reuse; comment out next line if you prefer persistent
       mqttService.disconnect();
     };
     // Re-subscribe when assigned tables change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedKey]);
+  }, [assignedKey, assignmentsLoaded]);
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     try {

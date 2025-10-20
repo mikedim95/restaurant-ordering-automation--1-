@@ -342,6 +342,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
         const { id } = request.params as { id: string };
         const body = updateStatusSchema.parse(request.body);
         const store = await ensureStore();
+        const actorRole = (request as any).user?.role as string | undefined;
 
         const existing = await db.order.findFirst({
           where: { id, storeId: store.id },
@@ -351,6 +352,24 @@ export async function orderRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: "Order not found" });
         }
 
+        // Role-based status transitions
+        // - PREPARING, READY: cook or manager
+        // - SERVED: waiter or manager
+        // - CANCELLED: manager or cook
+        const next = body.status;
+        const allowByRole = (role?: string) => {
+          if (!role) return false;
+          if (next === OrderStatus.SERVED) return role === 'waiter' || role === 'manager';
+          if (next === OrderStatus.PREPARING || next === OrderStatus.READY) return role === 'cook' || role === 'manager';
+          if (next === OrderStatus.CANCELLED) return role === 'manager' || role === 'cook';
+          return role === 'manager';
+        };
+
+        if (!allowByRole(actorRole)) {
+          return reply.status(403).send({ error: 'Insufficient permissions for status change' });
+        }
+
+        const prev = existing.status;
         const updatedOrder = await db.order.update({
           where: { id },
           data: { status: body.status, updatedAt: new Date() },
@@ -363,6 +382,15 @@ export async function orderRoutes(fastify: FastifyInstance) {
             },
           },
         });
+
+        if (body.status === OrderStatus.PREPARING) {
+          publishMessage(`stores/${STORE_SLUG}/tables/${updatedOrder.tableId}/accepted`, {
+            orderId: updatedOrder.id,
+            tableId: updatedOrder.tableId,
+            status: OrderStatus.PREPARING,
+            ts: new Date().toISOString(),
+          });
+        }
 
         if (body.status === OrderStatus.READY) {
           publishMessage(`stores/${STORE_SLUG}/tables/${updatedOrder.tableId}/ready`, {

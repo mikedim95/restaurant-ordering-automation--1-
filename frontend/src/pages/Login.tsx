@@ -20,11 +20,9 @@ export default function Login() {
     try {
       const { accessToken, user } = await api.signIn(email, password);
       login(user, accessToken);
-      if (user.role === 'manager') {
-        navigate('/manager');
-      } else {
-        navigate('/waiter');
-      }
+      if (user.role === 'manager') navigate('/manager');
+      else if (user.role === 'cook') navigate('/cook');
+      else navigate('/waiter');
     } catch (err: any) {
       alert(err?.message || 'Login failed');
     }

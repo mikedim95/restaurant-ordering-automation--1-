@@ -1,5 +1,5 @@
 export type OrderStatus = 'PLACED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
-export type UserRole = 'waiter' | 'manager';
+export type UserRole = 'waiter' | 'manager' | 'cook';
 
 export interface MenuItem {
   id: string;

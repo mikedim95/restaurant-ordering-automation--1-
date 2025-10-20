@@ -253,6 +253,7 @@ model AuditLog {
 enum Role {
   WAITER
   MANAGER
+  COOK
 }
 
 enum OrderStatus {

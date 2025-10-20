@@ -12,6 +12,7 @@ import DemoStore from "./pages/DemoStore";
 import WaiterDashboard from "./pages/WaiterDashboard";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import OrderThanks from "./pages/OrderThanks";
+import CookDashboard from "./pages/CookDashboard";
 import './i18n/config';
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/order/:orderId/thanks" element={<OrderThanks />} />
             <Route path="/waiter" element={<WaiterDashboard />} />
             <Route path="/manager" element={<ManagerDashboard />} />
+            <Route path="/cook" element={<CookDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
