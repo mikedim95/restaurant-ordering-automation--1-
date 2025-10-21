@@ -129,4 +129,8 @@ export const api = {
     fetchApi("/manager/item-modifiers", { method: "POST", body: JSON.stringify({ itemId, modifierId, isRequired }) }),
   unlinkItemModifier: (itemId: string, modifierId: string) =>
     fetchApi("/manager/item-modifiers", { method: "DELETE", body: JSON.stringify({ itemId, modifierId }) }),
+
+  // Manager: orders admin
+  managerDeleteOrder: (orderId: string) => fetchApi(`/manager/orders/${orderId}`, { method: 'DELETE' }),
+  managerCancelOrder: (orderId: string) => fetchApi(`/manager/orders/${orderId}/cancel`, { method: 'PATCH' }),
 };

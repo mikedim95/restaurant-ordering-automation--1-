@@ -14,11 +14,20 @@ const statusColors = {
   READY: 'bg-green-100 text-green-800',
   SERVED: 'bg-gray-100 text-gray-800',
   CANCELLED: 'bg-red-100 text-red-800',
-};
+} as const;
+
+const borderColors = {
+  PLACED: 'border-l-4 border-blue-500',
+  PREPARING: 'border-l-4 border-amber-500',
+  READY: 'border-l-4 border-green-500',
+  SERVED: 'border-l-4 border-gray-400',
+  CANCELLED: 'border-l-4 border-red-500',
+} as const;
 
 export const OrderCard = ({ order, onUpdateStatus }: Props) => {
+  const border = borderColors[order.status] || '';
   return (
-    <Card className="p-4">
+    <Card className={`p-4 ${border}`}>
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-semibold text-lg">Table {order.tableLabel}</h3>

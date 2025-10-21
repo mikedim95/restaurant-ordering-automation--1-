@@ -207,5 +207,25 @@ export async function managerRoutes(fastify: FastifyInstance) {
       return reply.status(500).send({ error: 'Failed to unlink modifier' });
     }
   });
-}
 
+  // Orders admin (delete or cancel)
+  fastify.delete('/manager/orders/:id', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      await db.order.delete({ where: { id } });
+      return reply.send({ success: true });
+    } catch (e) {
+      return reply.status(500).send({ error: 'Failed to delete order' });
+    }
+  });
+
+  fastify.patch('/manager/orders/:id/cancel', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const updated = await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
+      return reply.send({ order: { id: updated.id, status: updated.status } });
+    } catch (e) {
+      return reply.status(500).send({ error: 'Failed to cancel order' });
+    }
+  });
+}

@@ -1,30 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { useOrdersStore } from '@/store/ordersStore';
+import { Order, OrderStatus } from '@/types';
 import { OrderCard } from '@/components/waiter/OrderCard';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { HomeLink } from '@/components/HomeLink';
 import { AppBurger } from './AppBurger';
 import { api } from '@/lib/api';
 import { mqttService } from '@/lib/mqtt';
-import { Order, OrderStatus } from '@/types';
-import { LogOut, Bell, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { LogOut, Check, X } from 'lucide-react';
+
+type StatusKey = 'ALL' | 'PLACED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
 
 export default function WaiterDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const { user, logout, isAuthenticated } = useAuthStore();
-  const [orders, setOrders] = useState<Order[]>([]);
+
+  const ordersAll = useOrdersStore((s) => s.orders);
+  const setOrdersLocal = useOrdersStore((s) => s.setOrders);
+  const upsertOrder = useOrdersStore((s) => s.upsert);
+  const updateLocalStatus = useOrdersStore((s) => s.updateStatus);
+
   const [assignedTableIds, setAssignedTableIds] = useState<Set<string>>(new Set());
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
-  const assignedKey = Array.from(assignedTableIds).sort().join(',');
   const [storeSlug, setStoreSlug] = useState<string>('demo-cafe');
   const [lastCallTableId, setLastCallTableId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState<boolean>(false);
+  const [statusFilter, setStatusFilter] = useState<StatusKey>('ALL');
+  const [take] = useState<number>(50);
 
   useEffect(() => {
     if (!isAuthenticated() || user?.role !== 'waiter') {
@@ -32,11 +40,38 @@ export default function WaiterDashboard() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Fetch orders helper
-  const fetchOrders = async () => {
+  // Load assignments + store slug
+  useEffect(() => {
+    const fetchAssignments = async () => {
       try {
-        // Ask backend for a smaller slice to keep things snappy
-        const data = (await api.getOrders({ take: 50 })) as any;
+        const store = (await api.getStore()) as any;
+        if (store?.store?.slug) setStoreSlug(store.store.slug);
+        const tablesRes = (await api.getTables()) as any;
+        const myId = user?.id;
+        const next = new Set<string>();
+        for (const t of tablesRes?.tables || []) {
+          if ((t.waiters || []).some((w: any) => w.id === myId)) {
+            next.add(t.id);
+          }
+        }
+        setAssignedTableIds(next);
+        setAssignmentsLoaded(true);
+      } catch {
+        // ignore
+      }
+    };
+    fetchAssignments();
+    const int = setInterval(fetchAssignments, 30000);
+    return () => clearInterval(int);
+  }, [user?.id]);
+
+  // Initial hydrate from backend (once)
+  useEffect(() => {
+    if (!assignmentsLoaded || !user) return;
+    if (ordersAll.length > 0) return;
+    (async () => {
+      try {
+        const data = (await api.getOrders({ take })) as any;
         const mapped = (data.orders || []).map((o: any) => ({
           id: o.id,
           tableId: o.tableId,
@@ -59,90 +94,92 @@ export default function WaiterDashboard() {
             selectedModifiers: {},
           })),
         })) as Order[];
-        let filtered = user?.role === 'waiter'
-          ? mapped.filter((o) => assignedTableIds.has(o.tableId))
-          : mapped;
-        if (!showAll) {
-          filtered = filtered.filter((o) => o.status !== 'CANCELLED' && o.status !== 'SERVED');
-        }
-        setOrders(filtered);
-      } catch (err) {
-        console.error('Failed to fetch orders', err);
-      }
-  };
-
-  // Fetch assignments when user changes, and only update state if changed
-  useEffect(() => {
-    const fetchAssignments = async () => {
-      try {
-        const store = (await api.getStore()) as any;
-        if (store?.store?.slug) setStoreSlug(store.store.slug);
-        const tablesRes = (await api.getTables()) as any;
-        const myId = user?.id;
-        const next = new Set<string>();
-        for (const t of tablesRes?.tables || []) {
-          if ((t.waiters || []).some((w: any) => w.id === myId)) {
-            next.add(t.id);
-          }
-        }
-        // Only update if changed to avoid rerender loops
-        const curr = assignedTableIds;
-        const same = curr.size === next.size && Array.from(next).every((id) => curr.has(id));
-        if (!same) setAssignedTableIds(next);
-        setAssignmentsLoaded(true);
+        setOrdersLocal(mapped);
       } catch (e) {
-        // ignore if fails
+        console.error('Initial orders load failed', e);
       }
-    };
+    })();
+  }, [assignmentsLoaded, user, ordersAll.length, setOrdersLocal, take]);
 
-    fetchAssignments();
-    // Optionally refresh assignments periodically (e.g., every 30s)
-    const int = setInterval(fetchAssignments, 30000);
-    return () => clearInterval(int);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  // Setup MQTT subscriptions; rewire when assignments change
+  // MQTT live updates → mutate local cache
   useEffect(() => {
-    if (!assignmentsLoaded && user?.role === 'waiter') return;
-    fetchOrders();
+    if (!assignmentsLoaded) return;
     mqttService.connect().then(() => {
-      mqttService.subscribe(`stores/${storeSlug}/printing`, (msg) => {
-        if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
-        toast({ title: 'New order', description: `Table ${msg.tableId}` });
-        fetchOrders();
+      // New orders
+      mqttService.subscribe(`stores/${storeSlug}/printing`, (msg: any) => {
+        if (!msg?.orderId) return;
+        const order: Order = {
+          id: msg.orderId,
+          tableId: msg.tableId,
+          tableLabel: msg.tableLabel ?? 'Table',
+          status: 'PLACED',
+          note: msg.note ?? '',
+          total: (msg.totalCents ?? 0) / 100,
+          createdAt: msg.createdAt ?? new Date().toISOString(),
+          items: (msg.items || []).map((it: any, idx: number) => ({
+            item: {
+              id: `ticket:${idx}:${it.title}`,
+              name: it.title,
+              description: '',
+              price: (it.unitPriceCents ?? 0) / 100,
+              image: '',
+              category: '',
+              available: true,
+            },
+            quantity: it.quantity ?? 1,
+            selectedModifiers: {},
+          })),
+        } as Order;
+        upsertOrder(order);
+        // Let the waiter know
+        toast({ title: 'New order', description: `Table ${order.tableLabel}` });
       });
-      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, (msg) => {
-        if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
-        toast({ title: 'Order accepted', description: `Table ${msg.tableId}` });
-        fetchOrders();
+
+      // Accepted
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, (msg: any) => {
+        if (!msg?.orderId) return;
+        updateLocalStatus(msg.orderId, 'PREPARING');
       });
-      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, (msg) => {
-        if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
-        toast({ title: 'Order ready', description: `Table ${msg.tableId}` });
-        fetchOrders();
+
+      // Ready
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, (msg: any) => {
+        if (!msg?.orderId) return;
+        updateLocalStatus(msg.orderId, 'READY');
+        toast({ title: 'Order ready', description: `Table ${msg?.tableId ?? ''}` });
       });
-      mqttService.subscribe(`stores/${storeSlug}/tables/+/call`, (msg) => {
+
+      // Call waiter
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/call`, (msg: any) => {
         if (!msg?.tableId) return;
         if (assignedTableIds.size > 0 && !assignedTableIds.has(msg.tableId)) return;
         setLastCallTableId(msg.tableId);
         toast({ title: 'Waiter called', description: `Table ${msg.tableId}` });
       });
     });
-
     return () => {
       mqttService.unsubscribe(`stores/${storeSlug}/printing`);
-      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/accepted`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/call`);
     };
-    // Re-subscribe when assigned tables or slug change
-  }, [assignedKey, assignmentsLoaded, storeSlug]);
+  }, [assignmentsLoaded, storeSlug, assignedTableIds, upsertOrder, updateLocalStatus, toast]);
+
+  // Derived list from local cache
+  const orders = useMemo(() => {
+    let list = ordersAll;
+    if (user?.role === 'waiter') {
+      list = list.filter((o) => assignedTableIds.has(o.tableId));
+    }
+    if (statusFilter !== 'ALL') {
+      list = list.filter((o) => o.status === statusFilter);
+    }
+    return list;
+  }, [ordersAll, user?.role, assignedTableIds, statusFilter]);
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     try {
       await api.updateOrderStatus(orderId, status);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
+      updateLocalStatus(orderId, status);
       toast({ title: 'Order updated', description: `Status changed to ${status}` });
     } catch (err: any) {
       toast({ title: 'Update failed', description: err?.message || 'Could not update status' });
@@ -203,15 +240,6 @@ export default function WaiterDashboard() {
                   <X className="h-4 w-4" /> Clear Call
                 </Button>
               </div>
-              <div className="mt-3 space-y-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
-                  Show all orders (incl. cancelled/served)
-                </label>
-                <Button variant="outline" size="sm" className="w-full" onClick={() => setOrders((prev) => prev.filter((o) => o.status !== 'CANCELLED'))}>
-                  Clear cancelled from view
-                </Button>
-              </div>
               <Button variant="outline" size="sm" onClick={handleLogout} className="w-full mt-2">
                 <LogOut className="h-4 w-4" /> Logout
               </Button>
@@ -221,9 +249,30 @@ export default function WaiterDashboard() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-xl font-semibold mb-6">{t('waiter.orders')}</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('waiter.orders')}</h2>
+
+        {/* Status filter toolbar */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {[
+            { key: 'ALL', label: 'All', cls: 'bg-gray-100 text-gray-800 hover:bg-gray-200' },
+            { key: 'PLACED', label: 'Placed', cls: 'bg-blue-100 text-blue-800 hover:bg-blue-200' },
+            { key: 'PREPARING', label: 'Preparing', cls: 'bg-amber-100 text-amber-800 hover:bg-amber-200' },
+            { key: 'READY', label: 'Ready', cls: 'bg-green-100 text-green-800 hover:bg-green-200' },
+            { key: 'SERVED', label: 'Served', cls: 'bg-gray-200 text-gray-700 hover:bg-gray-300' },
+            { key: 'CANCELLED', label: 'Cancelled', cls: 'bg-red-100 text-red-800 hover:bg-red-200' },
+          ].map((b: any) => (
+            <button
+              key={b.key}
+              onClick={() => setStatusFilter(b.key)}
+              className={`px-3 py-1.5 rounded-md text-sm transition border ${b.cls} ${statusFilter===b.key ? 'ring-2 ring-offset-1 ring-black/10' : ''}`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.filter((o) => o.status !== 'SERVED').map((order) => (
+          {orders.map((order) => (
             <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} />
           ))}
         </div>
@@ -231,3 +280,4 @@ export default function WaiterDashboard() {
     </div>
   );
 }
+
