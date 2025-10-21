@@ -7,6 +7,7 @@ interface CartStore {
   addItem: (item: CartItem) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
+  updateItemModifiers: (index: number, selectedModifiers: { [modifierId: string]: string }) => void;
   clearCart: () => void;
   getTotal: () => number;
 }
@@ -36,6 +37,24 @@ export const useCartStore = create<CartStore>()(
         set((state) => ({
           items: state.items.map((i) => (i.item.id === itemId ? { ...i, quantity } : i)),
         })),
+      updateItemModifiers: (index, selectedModifiers) =>
+        set((state) => {
+          const items = state.items.slice();
+          if (!items[index]) return { items };
+          items[index] = { ...items[index], selectedModifiers };
+          // Merge duplicates (same item id + same modifiers)
+          const merged: CartItem[] = [];
+          const key = (ci: CartItem) => ci.item.id + '|' + JSON.stringify(ci.selectedModifiers || {});
+          const map = new Map<string, CartItem>();
+          for (const ci of items) {
+            const k = key(ci);
+            const existing = map.get(k);
+            if (existing) existing.quantity += ci.quantity;
+            else map.set(k, { ...ci });
+          }
+          map.forEach((v) => merged.push(v));
+          return { items: merged };
+        }),
       clearCart: () => set({ items: [] }),
       getTotal: () => {
         const { items } = get();

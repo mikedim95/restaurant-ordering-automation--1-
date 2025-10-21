@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useCartStore } from "@/store/cartStore";
 import { api } from "@/lib/api";
+import { mqttService } from "@/lib/mqtt";
 import { MenuItem } from "@/types";
 import { Bell, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 export default function TableMenu() {
@@ -27,10 +29,12 @@ export default function TableMenu() {
     itemModifiers: any[];
   } | null>(null);
   const [storeName, setStoreName] = useState<string>("Demo Café");
+  const [storeSlug, setStoreSlug] = useState<string>("demo-cafe");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
+  const [calling, setCalling] = useState<"idle" | "pending" | "accepted">("idle");
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -41,6 +45,7 @@ export default function TableMenu() {
           api.getMenu() as Promise<any>,
         ]);
         if (storeRes?.store?.name) setStoreName(storeRes.store.name);
+        if (storeRes?.store?.slug) setStoreSlug(storeRes.store.slug);
         // Normalize categories shape for tabs: keep API order
         const categories = (data as any)?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
         setMenuData({
@@ -127,14 +132,39 @@ export default function TableMenu() {
     }
   };
 
+  useEffect(() => {
+    // subscribe for call acknowledgements for this table
+    if (!tableId) return;
+    let mounted = true;
+    (async () => {
+      await mqttService.connect();
+      mqttService.subscribe(`stores/${storeSlug}/tables/${tableId}/call/accepted`, () => {
+        if (!mounted) return;
+        setCalling("accepted");
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/${tableId}/call/cleared`, () => {
+        if (!mounted) return;
+        setCalling("idle");
+      });
+    })();
+    return () => {
+      mounted = false;
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/call/accepted`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/call/cleared`);
+    };
+  }, [storeSlug, tableId]);
+
   const handleCallWaiter = async () => {
     if (!tableId) return;
     try {
+      setCalling("pending");
       await api.callWaiter(tableId);
       toast({
         title: "Waiter called",
         description: "A waiter will be with you shortly",
       });
+      // safety re-enable after 45s
+      setTimeout(() => setCalling((s) => (s === "pending" ? "idle" : s)), 45000);
     } catch (err: any) {
       const msg = err?.message || '';
       toast({
@@ -144,6 +174,7 @@ export default function TableMenu() {
             ? "Device not allowed by IP whitelist. See ALLOWED_IPS in backend."
             : msg || "Unable to call waiter.",
       });
+      setCalling("idle");
     }
   };
 
@@ -156,45 +187,73 @@ export default function TableMenu() {
             <p className="text-sm text-gray-500">Table {tableId}</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              disabled={calling !== "idle"}
               onClick={handleCallWaiter}
-              className="gap-2"
+              className={`relative inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                calling === "idle" ? "bg-white hover:bg-gray-50" : "bg-blue-50 text-blue-700 border-blue-200"
+              } ${calling !== "idle" ? "opacity-80 cursor-not-allowed" : ""}`}
             >
-              <Bell className="h-4 w-4" />
-              {t("menu.call_waiter")}
-            </Button>
+              <span className="relative inline-flex">
+                {calling !== "idle" && (
+                  <span className="absolute inline-flex h-full w-full rounded-full animate-ping bg-blue-300 opacity-60" />
+                )}
+                <Bell className="h-4 w-4 relative" />
+              </span>
+              {calling === "idle" && t("menu.call_waiter")}
+              {calling === "pending" && "Calling…"}
+              {calling === "accepted" && "Coming…"}
+            </button>
             <LanguageSwitcher />
           </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          <Button
-            key="all"
-            variant={selectedCategory === 'all' ? 'default' : 'outline'}
-            onClick={() => setSelectedCategory('all')}
-            className="shrink-0"
-          >
-            All
-          </Button>
-          {categories.map((cat) => (
+        {loading ? (
+          <div className="flex gap-2 mb-8 overflow-x-hidden pb-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-24 rounded-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
             <Button
-              key={cat.id}
-              variant={selectedCategory === cat.id ? "default" : "outline"}
-              onClick={() => setSelectedCategory(cat.id)}
+              key="all"
+              variant={selectedCategory === 'all' ? 'default' : 'outline'}
+              onClick={() => setSelectedCategory('all')}
               className="shrink-0"
             >
-              {cat.title}
+              All
             </Button>
-          ))}
-        </div>
+            {categories.map((cat) => (
+              <Button
+                key={cat.id}
+                variant={selectedCategory === cat.id ? "default" : "outline"}
+                onClick={() => setSelectedCategory(cat.id)}
+                className="shrink-0"
+              >
+                {cat.title}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-md overflow-hidden">
+                <Skeleton className="w-full aspect-square" />
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <div className="flex items-center justify-between pt-2">
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-9 w-24 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="text-center py-12">
@@ -202,11 +261,35 @@ export default function TableMenu() {
             <Button onClick={() => window.location.reload()}>Retry</Button>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <MenuItemCard key={item.id} item={item} onAdd={handleAddItem} />
-            ))}
-          </div>
+          <>
+            {selectedCategory === 'all' ? (
+              <div className="space-y-8">
+                {categories.map((cat) => {
+                  const catItems = menuData!.items.filter((i: any) => i.categoryId === cat.id || i.category === cat.title);
+                  if (catItems.length === 0) return null;
+                  return (
+                    <section key={cat.id}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-gray-800">{cat.title}</h3>
+                        <div className="h-px bg-gray-200 flex-1" />
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {catItems.map((item) => (
+                          <MenuItemCard key={item.id} item={item} onAdd={handleAddItem} />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {filteredItems.map((item) => (
+                  <MenuItemCard key={item.id} item={item} onAdd={handleAddItem} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

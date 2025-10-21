@@ -8,7 +8,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { api } from '@/lib/api';
 import { mqttService } from '@/lib/mqtt';
 import { Order, OrderStatus } from '@/types';
-import { LogOut, Bell } from 'lucide-react';
+import { LogOut, Bell, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function WaiterDashboard() {
@@ -21,6 +21,7 @@ export default function WaiterDashboard() {
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
   const assignedKey = Array.from(assignedTableIds).sort().join(',');
   const [storeSlug, setStoreSlug] = useState<string>('demo-cafe');
+  const [lastCallTableId, setLastCallTableId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated() || user?.role !== 'waiter') {
@@ -116,6 +117,7 @@ export default function WaiterDashboard() {
       });
       mqttService.subscribe(`stores/${storeSlug}/tables/+/call`, (msg) => {
         if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
+        setLastCallTableId(msg.tableId);
         toast({ title: 'Waiter called', description: `Table ${msg.tableId}` });
       });
     });
@@ -156,8 +158,40 @@ export default function WaiterDashboard() {
             <p className="text-sm text-gray-500">{user?.displayName}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Bell className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!lastCallTableId}
+              onClick={() => {
+                if (!lastCallTableId) return;
+                mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/accepted`, {
+                  tableId: lastCallTableId,
+                  ts: new Date().toISOString(),
+                });
+                toast({ title: 'Call accepted', description: `Table ${lastCallTableId}` });
+              }}
+              className="gap-2"
+              title="Accept call"
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!lastCallTableId}
+              onClick={() => {
+                if (!lastCallTableId) return;
+                mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/cleared`, {
+                  tableId: lastCallTableId,
+                  ts: new Date().toISOString(),
+                });
+                setLastCallTableId(null);
+                toast({ title: 'Call cleared', description: `Table ${lastCallTableId}` });
+              }}
+              className="gap-2"
+              title="Clear call"
+            >
+              <X className="h-4 w-4" />
             </Button>
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={handleLogout}>

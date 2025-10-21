@@ -56,8 +56,10 @@ class RealMQTTService {
   async connect() {
     if (this.client) return;
     try {
-      const mqtt = await import("mqtt");
-      this.client = mqtt.connect(VITE_MQTT_URL, {
+      // Load mqtt for browser via standard entry; Vite resolves to browser build
+      const mod: any = await import('mqtt');
+      const connectFn: any = mod.connect || mod.default?.connect || mod.default;
+      this.client = connectFn(VITE_MQTT_URL, {
         clientId: CLIENT_ID,
         username: VITE_MQTT_USERNAME,
         password: VITE_MQTT_PASSWORD,

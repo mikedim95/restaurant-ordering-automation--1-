@@ -89,6 +89,16 @@ export default function CookDashboard() {
     };
   }, [storeSlug]);
 
+  // Fallback polling when MQTT is not connected
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!mqttService.isConnected()) {
+        load();
+      }
+    }, 8000);
+    return () => clearInterval(iv);
+  }, []);
+
   const accept = async (id: string) => {
     await api.updateOrderStatus(id, 'PREPARING');
     toast({ title: 'Accepted', description: `Order ${id} is now PREPARING` });

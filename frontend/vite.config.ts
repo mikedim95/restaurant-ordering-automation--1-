@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  optimizeDeps: {
+    include: ['mqtt'],
+  },
   plugins: [react()].filter(Boolean),
   resolve: {
     alias: {

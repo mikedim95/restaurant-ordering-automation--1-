@@ -12,10 +12,21 @@ interface Props {
   item: MenuItem | null;
   onClose: () => void;
   onConfirm: (selected: SelectionMap) => void;
+  initialSelected?: SelectionMap;
 }
 
-export const ModifierDialog = ({ open, item, onClose, onConfirm }: Props) => {
-  const [selected, setSelected] = useState<SelectionMap>({});
+export const ModifierDialog = ({ open, item, onClose, onConfirm, initialSelected }: Props) => {
+  const [selected, setSelected] = useState<SelectionMap>(initialSelected || {});
+  // reset when item or initialSelected changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const _resetKey = (item ? item.id : 'none') + JSON.stringify(initialSelected || {});
+  // React to changes
+  // simple approach: re-create selected
+  // Note: using key on DialogContent would also work
+  // but keeping controlled state here
+  // @ts-ignore
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useState(() => { setSelected(initialSelected || {}); return undefined; }, [_resetKey]);
 
   const effectiveModifiers: Modifier[] = useMemo(() => item?.modifiers || [], [item]);
 
@@ -92,4 +103,3 @@ export const ModifierDialog = ({ open, item, onClose, onConfirm }: Props) => {
     </Dialog>
   );
 };
-
