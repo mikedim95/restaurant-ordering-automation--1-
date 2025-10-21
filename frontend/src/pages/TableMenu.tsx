@@ -6,6 +6,8 @@ import { ModifierDialog } from "@/components/menu/ModifierDialog";
 import { Cart } from "@/components/menu/Cart";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { HomeLink } from "@/components/HomeLink";
+import { AppBurger } from "./AppBurger";
 import { useCartStore } from "@/store/cartStore";
 import { api } from "@/lib/api";
 import { mqttService } from "@/lib/mqtt";
@@ -182,29 +184,30 @@ export default function TableMenu() {
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-purple-600">{storeName}</h1>
             <p className="text-sm text-gray-500">Table {tableId}</p>
           </div>
-          <div className="flex gap-2">
-            <button
-              disabled={calling !== "idle"}
-              onClick={handleCallWaiter}
-              className={`relative inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                calling === "idle" ? "bg-white hover:bg-gray-50" : "bg-blue-50 text-blue-700 border-blue-200"
-              } ${calling !== "idle" ? "opacity-80 cursor-not-allowed" : ""}`}
-            >
-              <span className="relative inline-flex">
-                {calling !== "idle" && (
-                  <span className="absolute inline-flex h-full w-full rounded-full animate-ping bg-blue-300 opacity-60" />
-                )}
-                <Bell className="h-4 w-4 relative" />
-              </span>
-              {calling === "idle" && t("menu.call_waiter")}
-              {calling === "pending" && "Calling…"}
-              {calling === "accepted" && "Coming…"}
-            </button>
-            <LanguageSwitcher />
+          <div className="flex gap-2 items-center">
+            <AppBurger title={storeName}>
+              <button
+                disabled={calling !== "idle"}
+                onClick={handleCallWaiter}
+                className={`w-full justify-center relative inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm transition ${
+                  calling === "idle" ? "bg-white hover:bg-gray-50" : "bg-blue-50 text-blue-700 border-blue-200"
+                } ${calling !== "idle" ? "opacity-80 cursor-not-allowed" : ""}`}
+              >
+                <span className="relative inline-flex">
+                  {calling !== "idle" && (
+                    <span className="absolute inline-flex h-full w-full rounded-full animate-ping bg-blue-300 opacity-60" />
+                  )}
+                  <Bell className="h-4 w-4 relative" />
+                </span>
+                {calling === "idle" && t("menu.call_waiter")}
+                {calling === "pending" && "Calling…"}
+                {calling === "accepted" && "Coming…"}
+              </button>
+            </AppBurger>
           </div>
         </div>
       </header>

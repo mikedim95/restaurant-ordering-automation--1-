@@ -5,6 +5,8 @@ import { useAuthStore } from '@/store/authStore';
 import { OrderCard } from '@/components/waiter/OrderCard';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { HomeLink } from '@/components/HomeLink';
+import { AppBurger } from './AppBurger';
 import { api } from '@/lib/api';
 import { mqttService } from '@/lib/mqtt';
 import { Order, OrderStatus } from '@/types';
@@ -22,6 +24,7 @@ export default function WaiterDashboard() {
   const assignedKey = Array.from(assignedTableIds).sort().join(',');
   const [storeSlug, setStoreSlug] = useState<string>('demo-cafe');
   const [lastCallTableId, setLastCallTableId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isAuthenticated() || user?.role !== 'waiter') {
@@ -32,7 +35,8 @@ export default function WaiterDashboard() {
   // Fetch orders helper
   const fetchOrders = async () => {
       try {
-        const data = (await api.getOrders()) as any;
+        // Ask backend for a smaller slice to keep things snappy
+        const data = (await api.getOrders({ take: 50 })) as any;
         const mapped = (data.orders || []).map((o: any) => ({
           id: o.id,
           tableId: o.tableId,
@@ -55,9 +59,12 @@ export default function WaiterDashboard() {
             selectedModifiers: {},
           })),
         })) as Order[];
-        const filtered = user?.role === 'waiter'
+        let filtered = user?.role === 'waiter'
           ? mapped.filter((o) => assignedTableIds.has(o.tableId))
           : mapped;
+        if (!showAll) {
+          filtered = filtered.filter((o) => o.status !== 'CANCELLED' && o.status !== 'SERVED');
+        }
         setOrders(filtered);
       } catch (err) {
         console.error('Failed to fetch orders', err);
@@ -116,7 +123,8 @@ export default function WaiterDashboard() {
         fetchOrders();
       });
       mqttService.subscribe(`stores/${storeSlug}/tables/+/call`, (msg) => {
-        if (!msg?.tableId || !assignedTableIds.has(msg.tableId)) return;
+        if (!msg?.tableId) return;
+        if (assignedTableIds.size > 0 && !assignedTableIds.has(msg.tableId)) return;
         setLastCallTableId(msg.tableId);
         toast({ title: 'Waiter called', description: `Table ${msg.tableId}` });
       });
@@ -127,12 +135,9 @@ export default function WaiterDashboard() {
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/accepted`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/call`);
-      // Keep connection for reuse; comment out next line if you prefer persistent
-      mqttService.disconnect();
     };
-    // Re-subscribe when assigned tables change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedKey, assignmentsLoaded]);
+    // Re-subscribe when assigned tables or slug change
+  }, [assignedKey, assignmentsLoaded, storeSlug]);
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus) => {
     try {
@@ -153,50 +158,64 @@ export default function WaiterDashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-purple-600">{t('waiter.dashboard')}</h1>
-            <p className="text-sm text-gray-500">{user?.displayName}</p>
+          <div className="flex items-center gap-2">
+            <div>
+              <h1 className="text-2xl font-bold text-purple-600">{t('waiter.dashboard')}</h1>
+              <p className="text-sm text-gray-500">{user?.displayName}</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!lastCallTableId}
-              onClick={() => {
-                if (!lastCallTableId) return;
-                mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/accepted`, {
-                  tableId: lastCallTableId,
-                  ts: new Date().toISOString(),
-                });
-                toast({ title: 'Call accepted', description: `Table ${lastCallTableId}` });
-              }}
-              className="gap-2"
-              title="Accept call"
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!lastCallTableId}
-              onClick={() => {
-                if (!lastCallTableId) return;
-                mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/cleared`, {
-                  tableId: lastCallTableId,
-                  ts: new Date().toISOString(),
-                });
-                setLastCallTableId(null);
-                toast({ title: 'Call cleared', description: `Table ${lastCallTableId}` });
-              }}
-              className="gap-2"
-              title="Clear call"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
+          <div className="flex gap-2 items-center">
+            <AppBurger title={t('waiter.dashboard')}>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!lastCallTableId}
+                  onClick={() => {
+                    if (!lastCallTableId) return;
+                    mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/accepted`, {
+                      tableId: lastCallTableId,
+                      ts: new Date().toISOString(),
+                    });
+                    toast({ title: 'Call accepted', description: `Table ${lastCallTableId}` });
+                  }}
+                  className="gap-2 w-full"
+                  title="Accept call"
+                >
+                  <Check className="h-4 w-4" /> Accept Call
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!lastCallTableId}
+                  onClick={() => {
+                    if (!lastCallTableId) return;
+                    mqttService.publish(`stores/${storeSlug}/tables/${lastCallTableId}/call/cleared`, {
+                      tableId: lastCallTableId,
+                      ts: new Date().toISOString(),
+                    });
+                    setLastCallTableId(null);
+                    toast({ title: 'Call cleared', description: `Table ${lastCallTableId}` });
+                  }}
+                  className="gap-2 w-full"
+                  title="Clear call"
+                >
+                  <X className="h-4 w-4" /> Clear Call
+                </Button>
+              </div>
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+                  Show all orders (incl. cancelled/served)
+                </label>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setOrders((prev) => prev.filter((o) => o.status !== 'CANCELLED'))}>
+                  Clear cancelled from view
+                </Button>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleLogout} className="w-full mt-2">
+                <LogOut className="h-4 w-4" /> Logout
+              </Button>
+            </AppBurger>
           </div>
         </div>
       </header>

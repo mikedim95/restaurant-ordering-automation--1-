@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MenuItemCard } from '@/components/menu/MenuItemCard';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { AppBurger } from './AppBurger';
+import { HomeLink } from '@/components/HomeLink';
 import { MENU_ITEMS } from '@/lib/menuData';
 import { Button } from '@/components/ui/button';
 import { MenuItem } from '@/types';
@@ -27,11 +29,17 @@ export default function DemoStore() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-purple-600">{demoSlug?.replace('-', ' ').toUpperCase()}</h1>
-            <p className="text-sm text-amber-600 font-medium">🔒 Demo Mode - Read Only</p>
+          <div className="flex items-center gap-2">
+            <AppBurger title={demoSlug?.replace('-', ' ').toUpperCase()} />
+            <div>
+              <h1 className="text-2xl font-bold text-purple-600">{demoSlug?.replace('-', ' ').toUpperCase()}</h1>
+              <p className="text-sm text-amber-600 font-medium">🔒 Demo Mode - Read Only</p>
+            </div>
           </div>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <HomeLink />
+          </div>
         </div>
       </header>
 

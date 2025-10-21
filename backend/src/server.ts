@@ -6,6 +6,7 @@ import { menuRoutes } from './routes/menu.js';
 import { orderRoutes } from './routes/orders.js';
 import { storeRoutes } from './routes/store.js';
 import { waiterTableRoutes } from './routes/waiterTables.js';
+import { managerRoutes } from './routes/manager.js';
 import { getMqttClient } from './lib/mqtt.js';
 
 dotenv.config();
@@ -16,7 +17,7 @@ const CORS_ORIGINS = CORS_ENV ? CORS_ENV.split(',') : ['http://localhost:5173'];
 const ALLOW_ALL_CORS = CORS_ENV === '*' || CORS_ORIGINS.includes('*');
 
 const fastify = Fastify({
-  logger: true,
+  logger: process.env.LOG_LEVEL ? { level: process.env.LOG_LEVEL } : true,
   trustProxy: true,
 });
 
@@ -37,6 +38,7 @@ await fastify.register(storeRoutes);
 await fastify.register(menuRoutes);
 await fastify.register(orderRoutes);
 await fastify.register(waiterTableRoutes);
+await fastify.register(managerRoutes);
 
 // Initialize MQTT
 getMqttClient();

@@ -246,7 +246,9 @@ export async function orderRoutes(fastify: FastifyInstance) {
           })),
         });
 
-        return reply.status(201).send({ order: serializeOrder(createdOrder) });
+        return reply.status(201)
+          .header('Server-Timing', 'total;desc="createOrder"')
+          .send({ order: serializeOrder(createdOrder) });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply
@@ -272,13 +274,17 @@ export async function orderRoutes(fastify: FastifyInstance) {
           .object({ status: z.nativeEnum(OrderStatus).optional() })
           .parse(request.query ?? {});
 
+        const queryTake = Math.min(
+          Math.max(Number((request.query as any)?.take ?? 30), 1),
+          100
+        );
         const ordersData = await db.order.findMany({
           where: {
             storeId: store.id,
             ...(query.status ? { status: query.status } : {}),
           },
           orderBy: { placedAt: "desc" },
-          take: 100,
+          take: queryTake,
           include: {
             table: true,
             orderItems: {

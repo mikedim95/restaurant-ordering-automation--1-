@@ -76,8 +76,11 @@ export const api = {
       body: JSON.stringify({ tableId }),
     }),
   // Authenticated orders API
-  getOrders: (params?: { status?: string }) => {
-    const query = params?.status ? `?status=${params.status}` : "";
+  getOrders: (params?: { status?: string; take?: number }) => {
+    const q: string[] = [];
+    if (params?.status) q.push(`status=${encodeURIComponent(params.status)}`);
+    if (params?.take) q.push(`take=${params.take}`);
+    const query = q.length ? `?${q.join('&')}` : "";
     return fetchApi(`/orders${query}`);
   },
   getOrder: (orderId: string) => fetchApi(`/orders/${orderId}`),
@@ -99,4 +102,31 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ waiterId, tableId }),
     }),
+
+  // Manager: waiters CRUD
+  listWaiters: () => fetchApi("/manager/waiters"),
+  createWaiter: (email: string, password: string, displayName: string) =>
+    fetchApi("/manager/waiters", { method: "POST", body: JSON.stringify({ email, password, displayName }) }),
+  updateWaiter: (id: string, data: Partial<{ email: string; password: string; displayName: string }>) =>
+    fetchApi(`/manager/waiters/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteWaiter: (id: string) => fetchApi(`/manager/waiters/${id}`, { method: "DELETE" }),
+
+  // Manager: items CRUD
+  listItems: () => fetchApi("/manager/items"),
+  createItem: (data: any) => fetchApi("/manager/items", { method: "POST", body: JSON.stringify(data) }),
+  updateItem: (id: string, data: any) => fetchApi(`/manager/items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteItem: (id: string) => fetchApi(`/manager/items/${id}`, { method: "DELETE" }),
+
+  // Manager: modifiers CRUD
+  listModifiers: () => fetchApi("/manager/modifiers"),
+  createModifier: (data: any) => fetchApi("/manager/modifiers", { method: "POST", body: JSON.stringify(data) }),
+  updateModifier: (id: string, data: any) => fetchApi(`/manager/modifiers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteModifier: (id: string) => fetchApi(`/manager/modifiers/${id}`, { method: "DELETE" }),
+  createModifierOption: (data: any) => fetchApi("/manager/modifier-options", { method: "POST", body: JSON.stringify(data) }),
+  updateModifierOption: (id: string, data: any) => fetchApi(`/manager/modifier-options/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteModifierOption: (id: string) => fetchApi(`/manager/modifier-options/${id}`, { method: "DELETE" }),
+  linkItemModifier: (itemId: string, modifierId: string, isRequired: boolean) =>
+    fetchApi("/manager/item-modifiers", { method: "POST", body: JSON.stringify({ itemId, modifierId, isRequired }) }),
+  unlinkItemModifier: (itemId: string, modifierId: string) =>
+    fetchApi("/manager/item-modifiers", { method: "DELETE", body: JSON.stringify({ itemId, modifierId }) }),
 };

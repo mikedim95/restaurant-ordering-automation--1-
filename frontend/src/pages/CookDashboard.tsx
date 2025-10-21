@@ -5,6 +5,8 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { HomeLink } from '@/components/HomeLink';
+import { AppBurger } from './AppBurger';
 import { Order } from '@/types';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
@@ -121,13 +123,16 @@ export default function CookDashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-purple-600">Cook Dashboard</h1>
-            <p className="text-sm text-gray-500">{user?.displayName}</p>
+          <div className="flex items-center gap-2">
+            <div>
+              <h1 className="text-2xl font-bold text-purple-600">Cook Dashboard</h1>
+              <p className="text-sm text-gray-500">{user?.displayName}</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }}>Logout</Button>
+          <div className="flex gap-2 items-center">
+            <AppBurger title="Cook Dashboard">
+              <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }} className="w-full">Logout</Button>
+            </AppBurger>
           </div>
         </div>
       </header>

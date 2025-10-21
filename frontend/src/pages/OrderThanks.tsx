@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { HomeLink } from '@/components/HomeLink';
+import { AppBurger } from './AppBurger';
 import { CheckCircle } from 'lucide-react';
 import { mqttService } from '@/lib/mqtt';
 import { api } from '@/lib/api';
@@ -44,6 +46,12 @@ export default function OrderThanks() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <HomeLink />
+      </div>
+      <div className="absolute top-4 left-4">
+        <AppBurger />
+      </div>
       <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle className="h-12 w-12 text-green-600" />

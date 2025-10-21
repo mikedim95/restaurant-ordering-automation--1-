@@ -2,9 +2,18 @@ import { FastifyInstance } from "fastify";
 import { db } from "../db/index.js";
 import { ensureStore } from "../lib/store.js";
 
+// naive in-memory cache with TTL
+let cachedMenu: any | null = null;
+let cachedMenuTs = 0;
+const MENU_TTL_MS = 30_000; // 30s
+
 export async function menuRoutes(fastify: FastifyInstance) {
   fastify.get("/menu", async (request, reply) => {
     try {
+      const now = Date.now();
+      if (cachedMenu && now - cachedMenuTs < MENU_TTL_MS) {
+        return reply.send(cachedMenu);
+      }
       const store = await ensureStore();
 
       const [categories, items, modifiers, itemModifiers] = await Promise.all([
@@ -97,7 +106,7 @@ export async function menuRoutes(fastify: FastifyInstance) {
         };
       });
 
-      return reply.send({
+      const payload = {
         store: {
           id: store.id,
           slug: store.slug,
@@ -111,7 +120,10 @@ export async function menuRoutes(fastify: FastifyInstance) {
         })),
         items: itemsResponse,
         modifiers: Array.from(modifierMap.values()),
-      });
+      };
+      cachedMenu = payload;
+      cachedMenuTs = now;
+      return reply.send(payload);
     } catch (error) {
       console.error("Menu fetch error:", error);
       return reply.status(500).send({ error: "Failed to fetch menu" });
