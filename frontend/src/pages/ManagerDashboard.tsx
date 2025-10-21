@@ -7,6 +7,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { HomeLink } from '@/components/HomeLink';
 import { AppBurger } from './AppBurger';
 import { api } from '@/lib/api';
+import { useOrdersStore } from '@/store/ordersStore';
 import { LogOut, Download, TrendingUp, Clock, DollarSign, Pencil, Trash2, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -17,7 +18,8 @@ export default function ManagerDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated, token } = useAuthStore();
-  const [orders, setOrders] = useState<any[]>([]);
+  const ordersAll = useOrdersStore((s) => s.orders);
+  const setOrdersLocal = useOrdersStore((s) => s.setOrders);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [waiters, setWaiters] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
@@ -48,8 +50,10 @@ export default function ManagerDashboard() {
   useEffect(() => {
     const init = async () => {
       try {
-        const ordersRes = (await api.getOrders()) as any;
-        setOrders(ordersRes.orders || []);
+        if (ordersAll.length === 0) {
+          const ordersRes = (await api.getOrders()) as any;
+          setOrdersLocal(ordersRes.orders || []);
+        }
       } catch (e) {
         // ignore for now
       }
@@ -93,7 +97,7 @@ export default function ManagerDashboard() {
     setAssignments((prev) => prev.filter((a: any) => !(a.waiterId === waiterId && a.tableId === tableId)));
   };
 
-  const totalRevenue = orders.reduce((sum, o: any) => sum + (o.total ?? o.totalCents / 100), 0);
+  const totalRevenue = ordersAll.reduce((sum, o: any) => sum + (o.total ?? o.totalCents / 100), 0);
   const avgOrderTime = 12; // minutes
 
   return (
@@ -134,7 +138,7 @@ export default function ManagerDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Total Orders</p>
-                <p className="text-2xl font-bold">{orders.length}</p>
+                <p className="text-2xl font-bold">{ordersAll.length}</p>
               </div>
             </div>
           </Card>
@@ -171,7 +175,7 @@ export default function ManagerDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order: any) => (
+                {ordersAll.map((order: any) => (
                   <tr key={order.id} className="border-b">
                     <td className="py-3">{order.tableLabel}</td>
                     <td className="py-3">{order.items.length}</td>

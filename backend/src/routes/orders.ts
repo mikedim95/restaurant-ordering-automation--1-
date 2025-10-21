@@ -407,6 +407,15 @@ export async function orderRoutes(fastify: FastifyInstance) {
           });
         }
 
+        if (body.status === OrderStatus.CANCELLED) {
+          publishMessage(`stores/${STORE_SLUG}/tables/${updatedOrder.tableId}/cancelled`, {
+            orderId: updatedOrder.id,
+            tableId: updatedOrder.tableId,
+            status: OrderStatus.CANCELLED,
+            ts: new Date().toISOString(),
+          });
+        }
+
         return reply.send({ order: serializeOrder(updatedOrder) });
       } catch (error) {
         if (error instanceof z.ZodError) {

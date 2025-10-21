@@ -10,6 +10,7 @@ import { HomeLink } from "@/components/HomeLink";
 import { AppBurger } from "./AppBurger";
 import { useCartStore } from "@/store/cartStore";
 import { api } from "@/lib/api";
+import { useMenuStore } from "@/store/menuStore";
 import { mqttService } from "@/lib/mqtt";
 import { MenuItem } from "@/types";
 import { Bell, Loader2 } from "lucide-react";
@@ -38,22 +39,33 @@ export default function TableMenu() {
   const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
   const [calling, setCalling] = useState<"idle" | "pending" | "accepted">("idle");
 
+  const menuCache = useMenuStore((s) => s.data);
+  const menuTs = useMenuStore((s) => s.ts);
+  const setMenuCache = useMenuStore((s) => s.setMenu);
+
   useEffect(() => {
-    const fetchMenu = async () => {
+    const hydrate = async () => {
       try {
         setLoading(true);
-        const [storeRes, data] = await Promise.all([
-          api.getStore() as Promise<any>,
-          api.getMenu() as Promise<any>,
-        ]);
+        const now = Date.now();
+        const fresh = menuCache && now - menuTs < 60_000; // 60s TTL
+        const storeRes = await api.getStore();
         if (storeRes?.store?.name) setStoreName(storeRes.store.name);
         if (storeRes?.store?.slug) setStoreSlug(storeRes.store.slug);
-        // Normalize categories shape for tabs: keep API order
-        const categories = (data as any)?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
+
+        let data: any;
+        if (fresh) {
+          data = menuCache;
+        } else {
+          data = await api.getMenu();
+          setMenuCache(data);
+        }
+
+        const categories = data?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
         setMenuData({
           categories,
-          items: (data as any)?.items || [],
-          modifiers: (data as any)?.modifiers || [],
+          items: data?.items || [],
+          modifiers: data?.modifiers || [],
           modifierOptions: [],
           itemModifiers: [],
         });
@@ -61,7 +73,6 @@ export default function TableMenu() {
       } catch (err) {
         console.error("Failed to fetch menu:", err);
         setError("Failed to load menu. Using offline mode.");
-        // Fallback to mock data if API fails
         const { MENU_ITEMS } = await import("@/lib/menuData");
         setMenuData({
           categories: Array.from(new Set(MENU_ITEMS.map((i) => i.category))).map((name, idx) => ({ id: String(idx), title: name })),
@@ -74,9 +85,8 @@ export default function TableMenu() {
         setLoading(false);
       }
     };
-
-    fetchMenu();
-  }, []);
+    hydrate();
+  }, [menuCache, menuTs, setMenuCache]);
 
   const categories = menuData ? menuData.categories : [];
   const filteredItems = menuData

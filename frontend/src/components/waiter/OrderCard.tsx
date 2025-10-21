@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 interface Props {
   order: Order;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
+  mode?: 'full' | 'waiter'; // waiter: only READY -> SERVED
 }
 
 const statusColors = {
@@ -24,7 +25,7 @@ const borderColors = {
   CANCELLED: 'border-l-4 border-red-500',
 } as const;
 
-export const OrderCard = ({ order, onUpdateStatus }: Props) => {
+export const OrderCard = ({ order, onUpdateStatus, mode = 'full' }: Props) => {
   const border = borderColors[order.status] || '';
   return (
     <Card className={`p-4 ${border}`}>
@@ -45,20 +46,32 @@ export const OrderCard = ({ order, onUpdateStatus }: Props) => {
       </div>
 
       <div className="flex gap-2">
-        {order.status === 'PLACED' && (
-          <Button size="sm" onClick={() => onUpdateStatus(order.id, 'PREPARING')} className="flex-1">
-            Start Preparing
-          </Button>
-        )}
-        {order.status === 'PREPARING' && (
-          <Button size="sm" onClick={() => onUpdateStatus(order.id, 'READY')} className="flex-1">
-            Mark Ready
-          </Button>
-        )}
-        {order.status === 'READY' && (
-          <Button size="sm" onClick={() => onUpdateStatus(order.id, 'SERVED')} className="flex-1">
-            Mark Served
-          </Button>
+        {mode === 'full' ? (
+          <>
+            {order.status === 'PLACED' && (
+              <Button size="sm" onClick={() => onUpdateStatus(order.id, 'PREPARING')} className="flex-1">
+                Start Preparing
+              </Button>
+            )}
+            {order.status === 'PREPARING' && (
+              <Button size="sm" onClick={() => onUpdateStatus(order.id, 'READY')} className="flex-1">
+                Mark Ready
+              </Button>
+            )}
+            {order.status === 'READY' && (
+              <Button size="sm" onClick={() => onUpdateStatus(order.id, 'SERVED')} className="flex-1">
+                Mark Served
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {order.status === 'READY' && (
+              <Button size="sm" onClick={() => onUpdateStatus(order.id, 'SERVED')} className="flex-1">
+                Mark Served
+              </Button>
+            )}
+          </>
         )}
       </div>
     </Card>

@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { mqttService } from '@/lib/mqtt';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Check, X } from 'lucide-react';
+import { MqttStatus } from '@/components/MqttStatus';
 
 type StatusKey = 'ALL' | 'PLACED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
 
@@ -135,17 +136,46 @@ export default function WaiterDashboard() {
         toast({ title: 'New order', description: `Table ${order.tableLabel}` });
       });
 
-      // Accepted
-      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, (msg: any) => {
+      // Accepted → PREPARING
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/accepted`, async (msg: any) => {
         if (!msg?.orderId) return;
         updateLocalStatus(msg.orderId, 'PREPARING');
+        // If order wasn't in cache yet, fetch and upsert (late join)
+        const exists = ordersAll.some(o => o.id === msg.orderId);
+        if (!exists) {
+          try {
+            const res = (await api.getOrder(msg.orderId)) as any;
+            if (res?.order) upsertOrder(res.order as Order);
+          } catch {}
+        }
       });
 
       // Ready
-      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, (msg: any) => {
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/ready`, async (msg: any) => {
         if (!msg?.orderId) return;
         updateLocalStatus(msg.orderId, 'READY');
+        const exists = ordersAll.some(o => o.id === msg.orderId);
+        if (!exists) {
+          try {
+            const res = (await api.getOrder(msg.orderId)) as any;
+            if (res?.order) upsertOrder(res.order as Order);
+          } catch {}
+        }
         toast({ title: 'Order ready', description: `Table ${msg?.tableId ?? ''}` });
+      });
+
+      // Cancelled
+      mqttService.subscribe(`stores/${storeSlug}/tables/+/cancelled`, async (msg: any) => {
+        if (!msg?.orderId) return;
+        updateLocalStatus(msg.orderId, 'CANCELLED');
+        const exists = ordersAll.some(o => o.id === msg.orderId);
+        if (!exists) {
+          try {
+            const res = (await api.getOrder(msg.orderId)) as any;
+            if (res?.order) upsertOrder(res.order as Order);
+          } catch {}
+        }
+        toast({ title: 'Order cancelled', description: `Table ${msg?.tableId ?? ''}` });
       });
 
       // Call waiter
@@ -161,6 +191,7 @@ export default function WaiterDashboard() {
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/accepted`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/ready`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/+/call`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/+/cancelled`);
     };
   }, [assignmentsLoaded, storeSlug, assignedTableIds, upsertOrder, updateLocalStatus, toast]);
 
@@ -195,11 +226,12 @@ export default function WaiterDashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div>
               <h1 className="text-2xl font-bold text-purple-600">{t('waiter.dashboard')}</h1>
               <p className="text-sm text-gray-500">{user?.displayName}</p>
             </div>
+            <MqttStatus />
           </div>
           <div className="flex gap-2 items-center">
             <AppBurger title={t('waiter.dashboard')}>
@@ -273,11 +305,10 @@ export default function WaiterDashboard() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {orders.map((order) => (
-            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} />
+            <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} mode="waiter" />
           ))}
         </div>
       </div>
     </div>
   );
 }
-
