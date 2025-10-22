@@ -29,7 +29,7 @@ async function fetchApi<T>(
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(options?.body ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options?.headers,
       },
@@ -133,4 +133,10 @@ export const api = {
   // Manager: orders admin
   managerDeleteOrder: (orderId: string) => fetchApi(`/manager/orders/${orderId}`, { method: 'DELETE' }),
   managerCancelOrder: (orderId: string) => fetchApi(`/manager/orders/${orderId}/cancel`, { method: 'PATCH' }),
+
+  // Manager: categories
+  listCategories: () => fetchApi('/manager/categories'),
+  createCategory: (title: string, sortOrder?: number) => fetchApi('/manager/categories', { method: 'POST', body: JSON.stringify({ title, sortOrder }) }),
+  updateCategory: (id: string, data: any) => fetchApi(`/manager/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCategory: (id: string) => fetchApi(`/manager/categories/${id}`, { method: 'DELETE' }),
 };

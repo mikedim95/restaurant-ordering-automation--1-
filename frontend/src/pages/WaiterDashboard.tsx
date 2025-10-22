@@ -223,13 +223,16 @@ export default function WaiterDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/30 to-background">
+      <header className="bg-card/80 backdrop-blur-lg border-b border-border sticky top-0 z-40 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg">
+              <span className="text-2xl">🍽️</span>
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-purple-600">{t('waiter.dashboard')}</h1>
-              <p className="text-sm text-gray-500">{user?.displayName}</p>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">{t('waiter.dashboard')}</h1>
+              <p className="text-sm text-muted-foreground">{user?.displayName}</p>
             </div>
             <MqttStatus />
           </div>
@@ -281,29 +284,32 @@ export default function WaiterDashboard() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-xl font-semibold mb-4">{t('waiter.orders')}</h2>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-1 w-12 bg-gradient-to-r from-primary to-indigo-500 rounded-full" />
+          <h2 className="text-2xl font-bold text-foreground">{t('waiter.orders')}</h2>
+        </div>
 
         {/* Status filter toolbar */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-3 mb-8 p-4 bg-card/50 backdrop-blur-sm rounded-xl border border-border shadow-sm">
           {[
-            { key: 'ALL', label: 'All', cls: 'bg-gray-100 text-gray-800 hover:bg-gray-200' },
-            { key: 'PLACED', label: 'Placed', cls: 'bg-blue-100 text-blue-800 hover:bg-blue-200' },
-            { key: 'PREPARING', label: 'Preparing', cls: 'bg-amber-100 text-amber-800 hover:bg-amber-200' },
-            { key: 'READY', label: 'Ready', cls: 'bg-green-100 text-green-800 hover:bg-green-200' },
-            { key: 'SERVED', label: 'Served', cls: 'bg-gray-200 text-gray-700 hover:bg-gray-300' },
-            { key: 'CANCELLED', label: 'Cancelled', cls: 'bg-red-100 text-red-800 hover:bg-red-200' },
+            { key: 'ALL', label: 'All', cls: 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300' },
+            { key: 'PLACED', label: 'Placed', cls: 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-800 hover:from-blue-200 hover:to-blue-300' },
+            { key: 'PREPARING', label: 'Preparing', cls: 'bg-gradient-to-br from-amber-100 to-amber-200 text-amber-800 hover:from-amber-200 hover:to-amber-300' },
+            { key: 'READY', label: 'Ready', cls: 'bg-gradient-to-br from-green-100 to-green-200 text-green-800 hover:from-green-200 hover:to-green-300' },
+            { key: 'SERVED', label: 'Served', cls: 'bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 hover:from-gray-300 hover:to-gray-400' },
+            { key: 'CANCELLED', label: 'Cancelled', cls: 'bg-gradient-to-br from-red-100 to-red-200 text-red-800 hover:from-red-200 hover:to-red-300' },
           ].map((b: any) => (
             <button
               key={b.key}
               onClick={() => setStatusFilter(b.key)}
-              className={`px-3 py-1.5 rounded-md text-sm transition border ${b.cls} ${statusFilter===b.key ? 'ring-2 ring-offset-1 ring-black/10' : ''}`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border shadow-sm hover:shadow-md ${b.cls} ${statusFilter===b.key ? 'ring-2 ring-primary ring-offset-2 scale-105' : ''}`}
             >
               {b.label}
             </button>
           ))}
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {orders.map((order) => (
             <OrderCard key={order.id} order={order} onUpdateStatus={handleUpdateStatus} mode="waiter" />
           ))}

@@ -92,9 +92,17 @@ export async function managerRoutes(fastify: FastifyInstance) {
   fastify.delete('/manager/items/:id', { preHandler: managerOnly }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
+      // Guard: prevent deleting if there are orderItems referencing this item
+      const orderItemCount = await db.orderItem.count({ where: { itemId: id } });
+      if (orderItemCount > 0) {
+        return reply.status(400).send({ error: 'Cannot delete item: it is referenced by existing orders' });
+      }
+      // Remove any item-modifier links first
+      await db.itemModifier.deleteMany({ where: { itemId: id } });
       await db.item.delete({ where: { id } });
       return reply.send({ success: true });
-    } catch {
+    } catch (e) {
+      console.error('Delete item error:', e);
       return reply.status(500).send({ error: 'Failed to delete item' });
     }
   });
@@ -226,6 +234,50 @@ export async function managerRoutes(fastify: FastifyInstance) {
       return reply.send({ order: { id: updated.id, status: updated.status } });
     } catch (e) {
       return reply.status(500).send({ error: 'Failed to cancel order' });
+    }
+  });
+
+  // Categories CRUD
+  fastify.get('/manager/categories', { preHandler: managerOnly }, async (_req, reply) => {
+    const store = await ensureStore();
+    const categories = await db.category.findMany({ where: { storeId: store.id }, orderBy: { sortOrder: 'asc' } });
+    return reply.send({ categories });
+  });
+
+  const categoryCreate = z.object({ title: z.string().min(1), sortOrder: z.number().int().optional() });
+  fastify.post('/manager/categories', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const body = categoryCreate.parse(request.body);
+      const store = await ensureStore();
+      const slug = (body.title.toLowerCase().replace(/\s+/g, '-') + '-' + Math.random().toString(16).slice(2, 6)).slice(0, 100);
+      const cat = await db.category.create({ data: { storeId: store.id, title: body.title, slug, sortOrder: body.sortOrder ?? 0 } });
+      return reply.status(201).send({ category: cat });
+    } catch (e) {
+      if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });
+      return reply.status(500).send({ error: 'Failed to create category' });
+    }
+  });
+
+  const categoryUpdate = z.object({ title: z.string().min(1).optional(), sortOrder: z.number().int().optional() });
+  fastify.patch('/manager/categories/:id', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const body = categoryUpdate.parse(request.body);
+      const updated = await db.category.update({ where: { id }, data: body });
+      return reply.send({ category: updated });
+    } catch (e) {
+      if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });
+      return reply.status(500).send({ error: 'Failed to update category' });
+    }
+  });
+
+  fastify.delete('/manager/categories/:id', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      await db.category.delete({ where: { id } });
+      return reply.send({ success: true });
+    } catch (e) {
+      return reply.status(500).send({ error: 'Failed to delete category' });
     }
   });
 }
