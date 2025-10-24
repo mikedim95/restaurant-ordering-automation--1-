@@ -15,6 +15,7 @@ export default function Login() {
   const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const debugEnabled = String((import.meta as any).env?.VITE_ENABLE_DEBUG_LOGIN || "").toLowerCase() === "true";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +72,56 @@ export default function Login() {
         <p className="mt-4 text-sm text-gray-500 text-center">
           Demo: waiter1@demo.local / manager@demo.local
         </p>
+
+        {debugEnabled && (
+          <div className="mt-6 pt-6 border-t">
+            <p className="text-xs text-gray-400 mb-3 text-center">Debug login (no backend)</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  login(
+                    { id: "debug-waiter", email: "waiter@debug", role: "waiter", displayName: "Debug Waiter" },
+                    "debug-token"
+                  );
+                  navigate("/waiter");
+                }}
+              >
+                Waiter
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  login(
+                    { id: "debug-cook", email: "cook@debug", role: "cook", displayName: "Debug Cook" },
+                    "debug-token"
+                  );
+                  navigate("/cook");
+                }}
+              >
+                Cook
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  login(
+                    { id: "debug-manager", email: "manager@debug", role: "manager", displayName: "Debug Manager" },
+                    "debug-token"
+                  );
+                  navigate("/manager");
+                }}
+              >
+                Manager
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-center text-gray-400">
+              This bypasses API auth and may show empty data if backend is offline.
+            </p>
+          </div>
+        )}
       </Card>
     </div>
   );

@@ -49,7 +49,7 @@ export default function TableMenu() {
         setLoading(true);
         const now = Date.now();
         const fresh = menuCache && now - menuTs < 60_000; // 60s TTL
-        const storeRes = await api.getStore();
+        const storeRes = await api.getStore() as any;
         if (storeRes?.store?.name) setStoreName(storeRes.store.name);
         if (storeRes?.store?.slug) setStoreSlug(storeRes.store.slug);
 

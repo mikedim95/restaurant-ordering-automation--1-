@@ -49,28 +49,31 @@ export const DemoQRGrid = () => {
   ];
 
   return (
-    <div id="demo-qr" className="py-24 bg-gradient-to-br from-gray-50 to-purple-50">
+    <div id="demo-qr" className="py-32 bg-gradient-to-b from-gray-50/50 to-white">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 bg-purple-100 px-4 py-2 rounded-full mb-4">
+        <div className="text-center mb-20">
+          <div className="inline-flex items-center gap-2 glass px-5 py-2.5 rounded-full mb-8 shadow-lg">
             <Smartphone className="h-4 w-4 text-purple-600" />
-            <span className="text-purple-900 text-sm font-medium">Scan with your phone camera</span>
+            <span className="text-gray-700 text-sm font-medium">Scan with your phone camera</span>
           </div>
-          <h2 className="text-5xl font-bold mb-4 text-gray-900">
+          <h2 className="text-6xl md:text-7xl font-black mb-6 text-gray-900 tracking-tight">
             Experience It Live
           </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-500 max-w-2xl mx-auto font-light">
             Scan these QR codes to see how customers order from their phones. No app download required!
           </p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8 mb-16 items-stretch">
+        <div className="grid md:grid-cols-3 gap-8 mb-20 items-stretch">
           {cards.map((card) => (
-            <Card key={card.key} className="p-8 text-center bg-white hover:shadow-2xl transition-shadow h-full flex flex-col">
+            <div 
+              key={card.key} 
+              className="group p-10 text-center bg-white rounded-3xl border border-gray-100 hover:border-purple-200 hover:shadow-2xl transition-all duration-300 h-full flex flex-col hover:-translate-y-2"
+            >
               <h3 className="text-2xl font-bold mb-2 text-gray-900">{card.name}</h3>
-              <p className="text-purple-600 font-medium mb-6">{card.desc}</p>
-              <div className="flex-1 flex items-center justify-center mb-6">
-                <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-6 rounded-2xl border-2 border-purple-200 min-w-[240px]">
+              <p className="text-purple-600 font-medium mb-8">{card.desc}</p>
+              <div className="flex-1 flex items-center justify-center mb-8">
+                <div className="glass p-8 rounded-3xl border-2 border-purple-100 min-w-[240px] group-hover:scale-105 transition-transform duration-300">
                   {card.link ? (
                     <QRCodeSVG key={card.link} value={card.link} size={220} level="H" includeMargin />
                   ) : (
@@ -81,7 +84,7 @@ export const DemoQRGrid = () => {
               <Button
                 asChild={!!card.link}
                 variant="outline"
-                className="w-full gap-2 mt-auto"
+                className="w-full gap-2 mt-auto rounded-2xl py-6 hover:bg-purple-50 hover:border-purple-600 transition-all"
                 disabled={!card.link}
                 onClick={!card.link ? undefined : undefined}
               >
@@ -97,13 +100,17 @@ export const DemoQRGrid = () => {
                   </span>
                 )}
               </Button>
-            </Card>
+            </div>
           ))}
         </div>
 
-        <div className="relative max-w-4xl mx-auto">
-          <div className="absolute -inset-4 bg-gradient-to-r from-purple-400 to-blue-400 rounded-3xl blur-3xl opacity-20" />
-          <img src={QR_MOCKUP} alt="QR in cafe" className="relative rounded-2xl shadow-2xl border-4 border-white" />
+        <div className="relative max-w-5xl mx-auto">
+          <div className="absolute -inset-8 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 rounded-[2.5rem] blur-3xl opacity-30 animate-glow" />
+          <img 
+            src={QR_MOCKUP} 
+            alt="QR in cafe" 
+            className="relative rounded-3xl shadow-2xl ring-1 ring-gray-200 hover:scale-[1.02] transition-transform duration-500" 
+          />
         </div>
       </div>
     </div>
