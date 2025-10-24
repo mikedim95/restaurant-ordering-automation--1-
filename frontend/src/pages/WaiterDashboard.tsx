@@ -76,24 +76,37 @@ export default function WaiterDashboard() {
         const mapped = (data.orders || []).map((o: any) => ({
           id: o.id,
           tableId: o.tableId,
-          tableLabel: o.tableLabel,
+          tableLabel: o.tableLabel ?? o.table ?? o.tableId ?? 'T',
           status: o.status,
           note: o.note,
-          total: o.total ?? o.totalCents / 100,
+          total: typeof o.total === 'number' ? o.total : (typeof o.totalCents === 'number' ? o.totalCents / 100 : 0),
           createdAt: o.createdAt,
-          items: (o.items || []).map((it: any) => ({
-            item: {
-              id: it.itemId,
-              name: it.title,
-              description: '',
-              price: it.unitPrice ?? it.unitPriceCents / 100,
-              image: '',
-              category: '',
-              available: true,
-            },
-            quantity: it.quantity,
-            selectedModifiers: {},
-          })),
+          items: (o.items || []).map((it: any) => {
+            const quantity = it?.quantity ?? it?.qty ?? 1;
+            const price = typeof it?.unitPrice === 'number'
+              ? it.unitPrice
+              : typeof it?.unitPriceCents === 'number'
+                ? it.unitPriceCents / 100
+                : typeof it?.priceCents === 'number'
+                  ? it.priceCents / 100
+                  : typeof it?.price === 'number'
+                    ? it.price
+                    : 0;
+            const name = it?.title ?? it?.name ?? it?.itemTitle ?? `Item ${String(it?.itemId || '').slice(-4)}`;
+            return ({
+              item: {
+                id: it.itemId ?? it.id ?? name,
+                name,
+                description: '',
+                price,
+                image: '',
+                category: '',
+                available: true,
+              },
+              quantity,
+              selectedModifiers: {},
+            });
+          }),
         })) as Order[];
         setOrdersLocal(mapped);
       } catch (e) {
@@ -198,7 +211,7 @@ export default function WaiterDashboard() {
   // Derived list from local cache
   const orders = useMemo(() => {
     let list = ordersAll;
-    if (user?.role === 'waiter') {
+    if (user?.role === 'waiter' && assignedTableIds.size > 0) {
       list = list.filter((o) => assignedTableIds.has(o.tableId));
     }
     if (statusFilter !== 'ALL') {

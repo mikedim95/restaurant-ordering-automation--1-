@@ -15,7 +15,11 @@ export default function Login() {
   const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const debugEnabled = String((import.meta as any).env?.VITE_ENABLE_DEBUG_LOGIN || "").toLowerCase() === "true";
+  const debugEnabled = (() => {
+    const env = String((import.meta as any).env?.VITE_ENABLE_DEBUG_LOGIN || "").toLowerCase() === "true";
+    try { if (localStorage.getItem('OFFLINE') === '1') return true; } catch {}
+    return env;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

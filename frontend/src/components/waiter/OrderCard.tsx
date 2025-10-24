@@ -38,11 +38,15 @@ export const OrderCard = ({ order, onUpdateStatus, mode = 'full' }: Props) => {
       </div>
       
       <div className="space-y-2 mb-4">
-        {order.items.map((item, idx) => (
-          <div key={idx} className="text-sm">
-            <span className="font-medium">{item.quantity}x</span> {item.item.name}
-          </div>
-        ))}
+        {(order.items || []).filter(Boolean).map((ci: any, idx: number) => {
+          const qty = ci?.quantity ?? ci?.qty ?? 1;
+          const name = ci?.item?.name ?? ci?.name ?? 'Item';
+          return (
+            <div key={idx} className="text-sm">
+              <span className="font-medium">{qty}x</span> {name}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">

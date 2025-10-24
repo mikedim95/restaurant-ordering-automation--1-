@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { mqttService } from '@/lib/mqtt';
 
+function isOffline() {
+  try { if (localStorage.getItem('OFFLINE') === '1') return true; } catch {}
+  const v = (import.meta as any).env?.VITE_OFFLINE;
+  return String(v ?? '').toLowerCase() === '1' || String(v ?? '').toLowerCase() === 'true';
+}
+
 export const MqttStatus = () => {
   const [connected, setConnected] = useState<boolean>(mqttService.isConnected());
 
@@ -13,8 +19,9 @@ export const MqttStatus = () => {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
-  const cls = connected ? 'bg-green-500' : 'bg-amber-500';
-  const label = connected ? 'Live' : 'Polling';
+  const offline = isOffline();
+  const cls = offline ? 'bg-amber-500' : (connected ? 'bg-green-500' : 'bg-amber-500');
+  const label = offline ? 'Offline' : (connected ? 'Live' : 'Polling');
 
   return (
     <span className="inline-flex items-center gap-1 text-xs text-gray-600" title={label}>
@@ -23,4 +30,3 @@ export const MqttStatus = () => {
     </span>
   );
 };
-
