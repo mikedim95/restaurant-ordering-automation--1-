@@ -15,7 +15,16 @@ export default function Login() {
   const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const debugEnabled = String((import.meta as any).env?.VITE_ENABLE_DEBUG_LOGIN || "").toLowerCase() === "true";
+  const debugEnabled = (() => {
+    const env =
+      String(
+        (import.meta as any).env?.VITE_ENABLE_DEBUG_LOGIN || ""
+      ).toLowerCase() === "true";
+    try {
+      if (localStorage.getItem("OFFLINE") === "1") return true;
+    } catch {}
+    return env;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,14 +84,21 @@ export default function Login() {
 
         {debugEnabled && (
           <div className="mt-6 pt-6 border-t">
-            <p className="text-xs text-gray-400 mb-3 text-center">Debug login (no backend)</p>
+            <p className="text-xs text-gray-400 mb-3 text-center">
+              Debug login (no backend)
+            </p>
             <div className="grid grid-cols-3 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
                   login(
-                    { id: "debug-waiter", email: "waiter@debug", role: "waiter", displayName: "Debug Waiter" },
+                    {
+                      id: "debug-waiter",
+                      email: "waiter@debug",
+                      role: "waiter",
+                      displayName: "Debug Waiter",
+                    },
                     "debug-token"
                   );
                   navigate("/waiter");
@@ -95,7 +111,12 @@ export default function Login() {
                 variant="outline"
                 onClick={() => {
                   login(
-                    { id: "debug-cook", email: "cook@debug", role: "cook", displayName: "Debug Cook" },
+                    {
+                      id: "debug-cook",
+                      email: "cook@debug",
+                      role: "cook",
+                      displayName: "Debug Cook",
+                    },
                     "debug-token"
                   );
                   navigate("/cook");
@@ -108,7 +129,12 @@ export default function Login() {
                 variant="outline"
                 onClick={() => {
                   login(
-                    { id: "debug-manager", email: "manager@debug", role: "manager", displayName: "Debug Manager" },
+                    {
+                      id: "debug-manager",
+                      email: "manager@debug",
+                      role: "manager",
+                      displayName: "Debug Manager",
+                    },
                     "debug-token"
                   );
                   navigate("/manager");
@@ -118,7 +144,8 @@ export default function Login() {
               </Button>
             </div>
             <p className="mt-2 text-[11px] text-center text-gray-400">
-              This bypasses API auth and may show empty data if backend is offline.
+              This bypasses API auth and may show empty data if backend is
+              offline.
             </p>
           </div>
         )}

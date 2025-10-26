@@ -101,8 +101,8 @@ export const ManagerMenuPanel = () => {
               ) : items.map((it:any)=> (
                 <div key={it.id} className={`flex items-center justify-between border rounded-lg p-3 ${it.isAvailable===false ? 'opacity-60' : ''}`}>
                   <div>
-                    <div className="font-medium">{it.title} <span className="text-xs text-gray-500">â‚¬{(it.priceCents/100).toFixed(2)}</span></div>
-                    <div className="text-xs text-gray-500">{it.description || 'â€”'}</div>
+                    <div className="font-medium">{it.title} <span className="text-xs text-gray-500">€{(it.priceCents/100).toFixed(2)}</span></div>
+                    <div className="text-xs text-gray-500">{it.description || '—'}</div>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={async ()=>{ 
@@ -334,7 +334,7 @@ export const ManagerMenuPanel = () => {
                   <Input className="col-span-2" placeholder="Option label" value={opt.title} onChange={(e)=>{
                     const v=e.target.value; setModEdit(me=>({ ...me, options: me.options.map((o,i)=> i===idx? { ...o, title: v }: o) }));
                   }}/>
-                  <Input placeholder="Price +â‚¬" type="number" min={0} step={0.01} value={opt.price} onChange={(e)=>{
+                  <Input placeholder="Price +€" type="number" min={0} step={0.01} value={opt.price} onChange={(e)=>{
                     const v=e.target.value; setModEdit(me=>({ ...me, options: me.options.map((o,i)=> i===idx? { ...o, price: v }: o) }));
                   }}/>
                   <div className="flex gap-1 justify-end">

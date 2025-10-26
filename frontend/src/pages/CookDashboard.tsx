@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿﻿﻿import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -43,24 +43,37 @@ export default function CookDashboard() {
           const mapped = (data.orders || []).map((o: any) => ({
             id: o.id,
             tableId: o.tableId,
-            tableLabel: o.tableLabel,
+            tableLabel: o.tableLabel ?? o.table ?? o.tableId ?? 'T',
             status: o.status,
             note: o.note,
-            total: o.total ?? o.totalCents / 100,
+            total: typeof o.total === 'number' ? o.total : (typeof o.totalCents === 'number' ? o.totalCents / 100 : 0),
             createdAt: o.createdAt,
-            items: (o.items || []).map((it: any) => ({
-              item: {
-                id: it.itemId,
-                name: it.title,
-                description: '',
-                price: it.unitPrice ?? it.unitPriceCents / 100,
-                image: '',
-                category: '',
-                available: true,
-              },
-              quantity: it.quantity,
-              selectedModifiers: {},
-            })),
+            items: (o.items || []).map((it: any) => {
+              const quantity = it?.quantity ?? it?.qty ?? 1;
+              const price = typeof it?.unitPrice === 'number'
+                ? it.unitPrice
+                : typeof it?.unitPriceCents === 'number'
+                  ? it.unitPriceCents / 100
+                  : typeof it?.priceCents === 'number'
+                    ? it.priceCents / 100
+                    : typeof it?.price === 'number'
+                      ? it.price
+                      : 0;
+              const name = it?.title ?? it?.name ?? it?.itemTitle ?? `Item ${String(it?.itemId || '').slice(-4)}`;
+              return ({
+                item: {
+                  id: it.itemId ?? it.id ?? name,
+                  name,
+                  description: '',
+                  price,
+                  image: '',
+                  category: '',
+                  available: true,
+                },
+                quantity,
+                selectedModifiers: {},
+              });
+            }),
           })) as Order[];
           setOrdersLocal(mapped);
         }
@@ -71,7 +84,7 @@ export default function CookDashboard() {
     init();
   }, [ordersAll.length, setOrdersLocal]);
 
-  // MQTT updates → local store
+  // MQTT updates -> local store
   useEffect(() => {
     mqttService.connect().then(() => {
       mqttService.subscribe(`stores/${storeSlug}/printing`, (msg: any) => {
@@ -187,23 +200,18 @@ export default function CookDashboard() {
                 </div>
               </div>
               <div className="space-y-2 text-sm bg-card/50 rounded-lg p-3 border border-border">
-                {o.items.map((it, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{it.quantity}</div>
-                    <span className="text-foreground font-medium">{it.item.name}</span>
-                  </div>
-                ))}
+                {(o.items || []).filter(Boolean).map((it: any, idx: number) => { const qty = it?.quantity ?? it?.qty ?? 1; const name = it?.item?.name ?? it?.name ?? "Item"; return (<div key={idx} className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{qty}</div><span className="text-foreground font-medium">{name}</span></div>); })}
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md" onClick={() => accept(o.id)} disabled={accepting.has(o.id)}>
                   {accepting.has(o.id) && (
                     <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
                   )}
-                  {accepting.has(o.id) ? 'Accepting…' : 'Accept'}
+                  {accepting.has(o.id) ? 'Accepting...' : 'Accept'}
                 </Button>
                 <Button className="flex-1 inline-flex items-center justify-center gap-2 hover:shadow-md transition-shadow" variant="outline" onClick={() => deny(o.id)} disabled={actingIds.has(`deny:${o.id}`)}>
                   {actingIds.has(`deny:${o.id}`) && <span className="h-4 w-4 border-2 border-current/60 border-t-transparent rounded-full animate-spin"/>}
-                  {actingIds.has(`deny:${o.id}`) ? 'Cancelling…' : 'Deny'}
+                  {actingIds.has(`deny:${o.id}`) ? 'Cancelling...' : 'Deny'}
                 </Button>
               </div>
             </Card>
@@ -230,17 +238,12 @@ export default function CookDashboard() {
                 </div>
               </div>
               <div className="space-y-2 text-sm bg-card/50 rounded-lg p-3 border border-border">
-                {o.items.map((it, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{it.quantity}</div>
-                    <span className="text-foreground font-medium">{it.item.name}</span>
-                  </div>
-                ))}
+                {(o.items || []).filter(Boolean).map((it: any, idx: number) => { const qty = it?.quantity ?? it?.qty ?? 1; const name = it?.item?.name ?? it?.name ?? "Item"; return (<div key={idx} className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{qty}</div><span className="text-foreground font-medium">{name}</span></div>); })}
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md" onClick={() => markReady(o.id)} disabled={actingIds.has(`ready:${o.id}`)}>
                   {actingIds.has(`ready:${o.id}`) && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
-                  {actingIds.has(`ready:${o.id}`) ? 'Marking…' : 'Mark Ready'}
+                  {actingIds.has(`ready:${o.id}`) ? 'Marking...' : 'Mark Ready'}
                 </Button>
               </div>
             </Card>
@@ -250,3 +253,6 @@ export default function CookDashboard() {
     </div>
   );
 }
+
+
+
