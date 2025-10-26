@@ -1,15 +1,15 @@
-﻿﻿﻿import { useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
-import { useOrdersStore } from '@/store/ordersStore';
-import { api } from '@/lib/api';
-import { mqttService } from '@/lib/mqtt';
-import { Order } from '@/types';
-import { Button } from '@/components/ui/button';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { Card } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+﻿import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/store/authStore";
+import { useOrdersStore } from "@/store/ordersStore";
+import { api } from "@/lib/api";
+import { mqttService } from "@/lib/mqtt";
+import { Order } from "@/types";
+import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 export default function CookDashboard() {
   const { t } = useTranslation();
@@ -22,13 +22,16 @@ export default function CookDashboard() {
   const upsertOrder = useOrdersStore((s) => s.upsert);
   const updateLocalStatus = useOrdersStore((s) => s.updateStatus);
 
-  const [storeSlug, setStoreSlug] = useState('demo-cafe');
+  const [storeSlug, setStoreSlug] = useState("demo-cafe");
   const [accepting, setAccepting] = useState<Set<string>>(new Set());
   const [actingIds, setActingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isAuthenticated() || (user?.role !== 'cook' && user?.role !== 'manager')) {
-      navigate('/login');
+    if (
+      !isAuthenticated() ||
+      (user?.role !== "cook" && user?.role !== "manager")
+    ) {
+      navigate("/login");
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -43,36 +46,46 @@ export default function CookDashboard() {
           const mapped = (data.orders || []).map((o: any) => ({
             id: o.id,
             tableId: o.tableId,
-            tableLabel: o.tableLabel ?? o.table ?? o.tableId ?? 'T',
+            tableLabel: o.tableLabel ?? o.table ?? o.tableId ?? "T",
             status: o.status,
             note: o.note,
-            total: typeof o.total === 'number' ? o.total : (typeof o.totalCents === 'number' ? o.totalCents / 100 : 0),
+            total:
+              typeof o.total === "number"
+                ? o.total
+                : typeof o.totalCents === "number"
+                ? o.totalCents / 100
+                : 0,
             createdAt: o.createdAt,
             items: (o.items || []).map((it: any) => {
               const quantity = it?.quantity ?? it?.qty ?? 1;
-              const price = typeof it?.unitPrice === 'number'
-                ? it.unitPrice
-                : typeof it?.unitPriceCents === 'number'
+              const price =
+                typeof it?.unitPrice === "number"
+                  ? it.unitPrice
+                  : typeof it?.unitPriceCents === "number"
                   ? it.unitPriceCents / 100
-                  : typeof it?.priceCents === 'number'
-                    ? it.priceCents / 100
-                    : typeof it?.price === 'number'
-                      ? it.price
-                      : 0;
-              const name = it?.title ?? it?.name ?? it?.itemTitle ?? `Item ${String(it?.itemId || '').slice(-4)}`;
-              return ({
+                  : typeof it?.priceCents === "number"
+                  ? it.priceCents / 100
+                  : typeof it?.price === "number"
+                  ? it.price
+                  : 0;
+              const name =
+                it?.title ??
+                it?.name ??
+                it?.itemTitle ??
+                `Item ${String(it?.itemId || "").slice(-4)}`;
+              return {
                 item: {
                   id: it.itemId ?? it.id ?? name,
                   name,
-                  description: '',
+                  description: "",
                   price,
-                  image: '',
-                  category: '',
+                  image: "",
+                  category: "",
                   available: true,
                 },
                 quantity,
                 selectedModifiers: {},
-              });
+              };
             }),
           })) as Order[];
           setOrdersLocal(mapped);
@@ -92,19 +105,19 @@ export default function CookDashboard() {
         const order: Order = {
           id: msg.orderId,
           tableId: msg.tableId,
-          tableLabel: msg.tableLabel ?? 'Table',
-          status: 'PLACED',
-          note: msg.note ?? '',
+          tableLabel: msg.tableLabel ?? "Table",
+          status: "PLACED",
+          note: msg.note ?? "",
           total: (msg.totalCents ?? 0) / 100,
           createdAt: msg.createdAt ?? new Date().toISOString(),
           items: (msg.items || []).map((it: any, idx: number) => ({
             item: {
               id: `ticket:${idx}:${it.title}`,
               name: it.title,
-              description: '',
+              description: "",
               price: (it.unitPriceCents ?? 0) / 100,
-              image: '',
-              category: '',
+              image: "",
+              category: "",
               available: true,
             },
             quantity: it.quantity ?? 1,
@@ -119,15 +132,24 @@ export default function CookDashboard() {
     };
   }, [storeSlug, upsertOrder]);
 
-  const incoming = useMemo(() => ordersAll.filter(o => o.status === 'PLACED'), [ordersAll]);
-  const preparing = useMemo(() => ordersAll.filter(o => o.status === 'PREPARING'), [ordersAll]);
+  const incoming = useMemo(
+    () => ordersAll.filter((o) => o.status === "PLACED"),
+    [ordersAll]
+  );
+  const preparing = useMemo(
+    () => ordersAll.filter((o) => o.status === "PREPARING"),
+    [ordersAll]
+  );
 
   const accept = async (id: string) => {
     setAccepting((s) => new Set(s).add(id));
     try {
-      await api.updateOrderStatus(id, 'PREPARING');
-      updateLocalStatus(id, 'PREPARING');
-      toast({ title: 'Preparing', description: `Order ${id} is now PREPARING` });
+      await api.updateOrderStatus(id, "PREPARING");
+      updateLocalStatus(id, "PREPARING");
+      toast({
+        title: "Preparing",
+        description: `Order ${id} is now PREPARING`,
+      });
     } finally {
       setAccepting((s) => {
         const n = new Set(s);
@@ -138,24 +160,32 @@ export default function CookDashboard() {
   };
 
   const deny = async (id: string) => {
-    setActingIds(s=> new Set(s).add(`deny:${id}`));
+    setActingIds((s) => new Set(s).add(`deny:${id}`));
     try {
-      await api.updateOrderStatus(id, 'CANCELLED');
-      updateLocalStatus(id, 'CANCELLED');
-      toast({ title: 'Cancelled', description: `Order ${id} cancelled` });
+      await api.updateOrderStatus(id, "CANCELLED");
+      updateLocalStatus(id, "CANCELLED");
+      toast({ title: "Cancelled", description: `Order ${id} cancelled` });
     } finally {
-      setActingIds(s=>{ const n=new Set(s); n.delete(`deny:${id}`); return n; });
+      setActingIds((s) => {
+        const n = new Set(s);
+        n.delete(`deny:${id}`);
+        return n;
+      });
     }
   };
 
   const markReady = async (id: string) => {
-    setActingIds(s=> new Set(s).add(`ready:${id}`));
+    setActingIds((s) => new Set(s).add(`ready:${id}`));
     try {
-      await api.updateOrderStatus(id, 'READY');
-      updateLocalStatus(id, 'READY');
-      toast({ title: 'Ready', description: `Order ${id} is READY` });
+      await api.updateOrderStatus(id, "READY");
+      updateLocalStatus(id, "READY");
+      toast({ title: "Ready", description: `Order ${id} is READY` });
     } finally {
-      setActingIds(s=>{ const n=new Set(s); n.delete(`ready:${id}`); return n; });
+      setActingIds((s) => {
+        const n = new Set(s);
+        n.delete(`ready:${id}`);
+        return n;
+      });
     }
   };
 
@@ -168,13 +198,27 @@ export default function CookDashboard() {
               <span className="text-2xl">👨‍🍳</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Cook Dashboard</h1>
-              <p className="text-sm text-muted-foreground">{user?.displayName}</p>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+                Cook Dashboard
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {user?.displayName}
+              </p>
             </div>
           </div>
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/login'); }} className="shadow-sm hover:shadow-md transition-shadow">Logout</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              className="shadow-sm hover:shadow-md transition-shadow"
+            >
+              Logout
+            </Button>
           </div>
         </div>
       </header>
@@ -182,36 +226,71 @@ export default function CookDashboard() {
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <div className="flex items-center gap-3">
           <div className="h-1 w-12 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full" />
-          <h2 className="text-2xl font-bold text-foreground">Incoming Orders</h2>
-          <div className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-sm font-semibold">{incoming.length}</div>
+          <h2 className="text-2xl font-bold text-foreground">
+            Incoming Orders
+          </h2>
+          <div className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-sm font-semibold">
+            {incoming.length}
+          </div>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {incoming.map((o) => (
-            <Card key={o.id} className="p-5 space-y-4 bg-gradient-to-br from-card to-accent/20 border-2 border-amber-200 hover:border-amber-400 hover:shadow-xl transition-all duration-300 animate-slide-in">
+            <Card
+              key={o.id}
+              className="p-5 space-y-4 bg-gradient-to-br from-card to-accent/20 border-2 border-amber-200 hover:border-amber-400 hover:shadow-xl transition-all duration-300 animate-slide-in"
+            >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white font-bold shadow-md">
                     {o.tableLabel}
                   </div>
                   <div>
-                    <div className="font-semibold text-foreground">Table {o.tableLabel}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleTimeString()}</div>
+                    <div className="font-semibold text-foreground">
+                      Table {o.tableLabel}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(o.createdAt).toLocaleTimeString()}
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="space-y-2 text-sm bg-card/50 rounded-lg p-3 border border-border">
-                {(o.items || []).filter(Boolean).map((it: any, idx: number) => { const qty = it?.quantity ?? it?.qty ?? 1; const name = it?.item?.name ?? it?.name ?? "Item"; return (<div key={idx} className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{qty}</div><span className="text-foreground font-medium">{name}</span></div>); })}
+                {(o.items || []).filter(Boolean).map((it: any, idx: number) => {
+                  const qty = it?.quantity ?? it?.qty ?? 1;
+                  const name = it?.item?.name ?? it?.name ?? "Item";
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">
+                        {qty}
+                      </div>
+                      <span className="text-foreground font-medium">
+                        {name}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex gap-2">
-                <Button className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md" onClick={() => accept(o.id)} disabled={accepting.has(o.id)}>
+                <Button
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
+                  onClick={() => accept(o.id)}
+                  disabled={accepting.has(o.id)}
+                >
                   {accepting.has(o.id) && (
                     <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
                   )}
-                  {accepting.has(o.id) ? 'Accepting...' : 'Accept'}
+                  {accepting.has(o.id) ? "Accepting..." : "Accept"}
                 </Button>
-                <Button className="flex-1 inline-flex items-center justify-center gap-2 hover:shadow-md transition-shadow" variant="outline" onClick={() => deny(o.id)} disabled={actingIds.has(`deny:${o.id}`)}>
-                  {actingIds.has(`deny:${o.id}`) && <span className="h-4 w-4 border-2 border-current/60 border-t-transparent rounded-full animate-spin"/>}
-                  {actingIds.has(`deny:${o.id}`) ? 'Cancelling...' : 'Deny'}
+                <Button
+                  className="flex-1 inline-flex items-center justify-center gap-2 hover:shadow-md transition-shadow"
+                  variant="outline"
+                  onClick={() => deny(o.id)}
+                  disabled={actingIds.has(`deny:${o.id}`)}
+                >
+                  {actingIds.has(`deny:${o.id}`) && (
+                    <span className="h-4 w-4 border-2 border-current/60 border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {actingIds.has(`deny:${o.id}`) ? "Cancelling..." : "Deny"}
                 </Button>
               </div>
             </Card>
@@ -221,29 +300,57 @@ export default function CookDashboard() {
         <div className="flex items-center gap-3 mt-12">
           <div className="h-1 w-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" />
           <h2 className="text-2xl font-bold text-foreground">In Preparation</h2>
-          <div className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">{preparing.length}</div>
+          <div className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
+            {preparing.length}
+          </div>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {preparing.map((o) => (
-            <Card key={o.id} className="p-5 space-y-4 bg-gradient-to-br from-card to-accent/20 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl transition-all duration-300">
+            <Card
+              key={o.id}
+              className="p-5 space-y-4 bg-gradient-to-br from-card to-accent/20 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl transition-all duration-300"
+            >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md">
                     {o.tableLabel}
                   </div>
                   <div>
-                    <div className="font-semibold text-foreground">Table {o.tableLabel}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleTimeString()}</div>
+                    <div className="font-semibold text-foreground">
+                      Table {o.tableLabel}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(o.createdAt).toLocaleTimeString()}
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="space-y-2 text-sm bg-card/50 rounded-lg p-3 border border-border">
-                {(o.items || []).filter(Boolean).map((it: any, idx: number) => { const qty = it?.quantity ?? it?.qty ?? 1; const name = it?.item?.name ?? it?.name ?? "Item"; return (<div key={idx} className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">{qty}</div><span className="text-foreground font-medium">{name}</span></div>); })}
+                {(o.items || []).filter(Boolean).map((it: any, idx: number) => {
+                  const qty = it?.quantity ?? it?.qty ?? 1;
+                  const name = it?.item?.name ?? it?.name ?? "Item";
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">
+                        {qty}
+                      </div>
+                      <span className="text-foreground font-medium">
+                        {name}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex gap-2">
-                <Button className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md" onClick={() => markReady(o.id)} disabled={actingIds.has(`ready:${o.id}`)}>
-                  {actingIds.has(`ready:${o.id}`) && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
-                  {actingIds.has(`ready:${o.id}`) ? 'Marking...' : 'Mark Ready'}
+                <Button
+                  className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md"
+                  onClick={() => markReady(o.id)}
+                  disabled={actingIds.has(`ready:${o.id}`)}
+                >
+                  {actingIds.has(`ready:${o.id}`) && (
+                    <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {actingIds.has(`ready:${o.id}`) ? "Marking..." : "Mark Ready"}
                 </Button>
               </div>
             </Card>
@@ -253,6 +360,3 @@ export default function CookDashboard() {
     </div>
   );
 }
-
-
-
