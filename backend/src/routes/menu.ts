@@ -5,7 +5,13 @@ import { ensureStore } from "../lib/store.js";
 // naive in-memory cache with TTL
 let cachedMenu: any | null = null;
 let cachedMenuTs = 0;
-const MENU_TTL_MS = 30_000; // 30s
+// Keep TTL short so manager changes reflect quickly
+const MENU_TTL_MS = 5_000; // 5s
+
+export function invalidateMenuCache() {
+  cachedMenu = null;
+  cachedMenuTs = 0;
+}
 
 export async function menuRoutes(fastify: FastifyInstance) {
   fastify.get("/menu", async (request, reply) => {

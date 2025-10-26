@@ -33,19 +33,19 @@ export const Cart = ({ onCheckout }: { onCheckout: (note?: string) => Promise<vo
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent>
+      <SheetContent className="flex flex-col">
         <SheetHeader>
           <SheetTitle>{t('menu.cart')}</SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {items.length === 0 ? (
             <p className="text-gray-500 text-center py-8">Cart is empty</p>
           ) : (
             <>
               {items.map((cartItem, idx) => (
-                <div key={idx} className="relative overflow-hidden select-none">
+                <div key={idx} className="relative overflow-hidden select-none rounded-lg">
                   {/* Actions revealed on swipe */}
-                  <div className="absolute right-0 top-0 h-full flex gap-1 pr-2">
+                  <div className="absolute right-0 top-0 h-full flex gap-2 pr-3 items-center">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -65,8 +65,8 @@ export const Cart = ({ onCheckout }: { onCheckout: (note?: string) => Promise<vo
                   </div>
                   {/* Swipeable content */}
                   <div
-                    className="flex items-center gap-3 py-3 border-b bg-white px-2 rounded-md"
-                    style={{ transform: `translateX(${swipeX[idx] || 0}px)`, transition: touchStart ? 'none' : 'transform 150ms ease' }}
+                    className="flex items-center gap-3 py-3 border-b bg-card/50 backdrop-blur-sm px-3 rounded-lg transition-shadow hover:shadow-md"
+                    style={{ transform: `translateX(${swipeX[idx] || 0}px)`, transition: touchStart ? 'none' : 'transform 200ms cubic-bezier(0.4, 0, 0.2, 1)' }}
                     onTouchStart={(e) => { setTouchStart(e.touches[0].clientX); }}
                     onTouchMove={(e) => {
                       if (touchStart == null) return;
@@ -96,20 +96,19 @@ export const Cart = ({ onCheckout }: { onCheckout: (note?: string) => Promise<vo
                   </div>
                 </div>
               ))}
-              <div className="pt-4 space-y-3 px-2">
-                <div className="bg-white border rounded-xl px-4 py-3 shadow-sm flex items-center justify-between">
-                  <span className="text-sm text-gray-500">{t('menu.total')}</span>
-                  <span className="text-xl font-bold">€{getTotal().toFixed(2)}</span>
+              <div className="pt-4 pb-2 space-y-3">
+                <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-2xl px-5 py-4 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">{t('menu.total')}</span>
+                    <span className="text-2xl font-bold text-primary">€{getTotal().toFixed(2)}</span>
+                  </div>
                 </div>
-                <div className="px-1">
-                  <Button
-                    className="w-full py-5 text-base rounded-xl shadow-lg"
-                    onClick={() => setReviewOpen(true)}
-                  >
-                    {t('menu.checkout')}
-                  </Button>
-                </div>
-                <div className="h-1" />
+                <Button
+                  className="w-full py-6 text-base rounded-2xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  onClick={() => setReviewOpen(true)}
+                >
+                  {t('menu.checkout')}
+                </Button>
               </div>
             </>
           )}

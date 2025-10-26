@@ -3,9 +3,9 @@
 
 type MQTTCallback = (message: any) => void;
 
-const VITE_MQTT_URL = import.meta.env.VITE_MQTT_URL || "ws://localhost:1883";
-const VITE_MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME;
-const VITE_MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD;
+const VITE_MQTT_URL = (import.meta as any).env?.VITE_MQTT_URL || "ws://localhost:1883";
+const VITE_MQTT_USERNAME = (import.meta as any).env?.VITE_MQTT_USERNAME;
+const VITE_MQTT_PASSWORD = (import.meta as any).env?.VITE_MQTT_PASSWORD;
 const CLIENT_ID = `orderflow-frontend-${Math.random().toString(16).slice(2)}`;
 console.log("MQTT Client ID:", CLIENT_ID);
 console.log("MQTT Broker URL:", VITE_MQTT_URL);

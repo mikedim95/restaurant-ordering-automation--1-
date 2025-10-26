@@ -4,6 +4,8 @@ import bcrypt from 'bcrypt';
 import { db } from '../db/index.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { ensureStore } from '../lib/store.js';
+import { publishMessage } from '../lib/mqtt.js';
+import { invalidateMenuCache } from './menu.js';
 
 export async function managerRoutes(fastify: FastifyInstance) {
   const managerOnly = [authMiddleware, requireRole(['manager'])];
@@ -69,6 +71,8 @@ export async function managerRoutes(fastify: FastifyInstance) {
       const body = itemCreateSchema.parse(request.body);
       const store = await ensureStore();
       const item = await db.item.create({ data: { storeId: store.id, categoryId: body.categoryId, slug: (body.title.toLowerCase().replace(/\s+/g, '-').slice(0, 60) + '-' + Math.random().toString(16).slice(2, 6)), title: body.title, description: body.description, priceCents: body.priceCents, isAvailable: body.isAvailable ?? true } });
+      invalidateMenuCache();
+      publishMessage(`stores/${store.slug}/menu/updated`, { type: 'item.created', itemId: item.id, ts: new Date().toISOString() });
       return reply.status(201).send({ item });
     } catch (e) {
       if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });
@@ -82,6 +86,9 @@ export async function managerRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       const body = itemUpdateSchema.parse(request.body);
       const updated = await db.item.update({ where: { id }, data: body });
+      invalidateMenuCache();
+      const store = await ensureStore();
+      publishMessage(`stores/${store.slug}/menu/updated`, { type: 'item.updated', itemId: updated.id, ts: new Date().toISOString() });
       return reply.send({ item: updated });
     } catch (e) {
       if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });
@@ -100,6 +107,9 @@ export async function managerRoutes(fastify: FastifyInstance) {
       // Remove any item-modifier links first
       await db.itemModifier.deleteMany({ where: { itemId: id } });
       await db.item.delete({ where: { id } });
+      invalidateMenuCache();
+      const store = await ensureStore();
+      publishMessage(`stores/${store.slug}/menu/updated`, { type: 'item.deleted', itemId: id, ts: new Date().toISOString() });
       return reply.send({ success: true });
     } catch (e) {
       console.error('Delete item error:', e);
@@ -120,6 +130,8 @@ export async function managerRoutes(fastify: FastifyInstance) {
       const body = modifierCreateSchema.parse(request.body);
       const store = await ensureStore();
       const modifier = await db.modifier.create({ data: { storeId: store.id, slug: (body.title.toLowerCase().replace(/\s+/g, '-').slice(0, 60) + '-' + Math.random().toString(16).slice(2, 6)), title: body.title, minSelect: body.minSelect, maxSelect: body.maxSelect ?? null } });
+      invalidateMenuCache();
+      publishMessage(`stores/${store.slug}/menu/updated`, { type: 'modifier.created', modifierId: modifier.id, ts: new Date().toISOString() });
       return reply.status(201).send({ modifier });
     } catch (e) {
       if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });
@@ -133,6 +145,9 @@ export async function managerRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       const body = modifierUpdateSchema.parse(request.body);
       const updated = await db.modifier.update({ where: { id }, data: body });
+      invalidateMenuCache();
+      const store = await ensureStore();
+      publishMessage(`stores/${store.slug}/menu/updated`, { type: 'modifier.updated', modifierId: updated.id, ts: new Date().toISOString() });
       return reply.send({ modifier: updated });
     } catch (e) {
       if (e instanceof z.ZodError) return reply.status(400).send({ error: 'Invalid request', details: e.errors });

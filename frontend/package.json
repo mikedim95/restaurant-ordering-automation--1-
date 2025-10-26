@@ -50,6 +50,7 @@
     "highlight.js": "^11.9.0",
     "i18next": "^23.10.1",
     "input-otp": "^1.2.4",
+    "lovable-tagger": "^1.1.11",
     "lucide-react": "^0.462.0",
     "marked": "^12.0.1",
     "mqtt": "^5.14.1",

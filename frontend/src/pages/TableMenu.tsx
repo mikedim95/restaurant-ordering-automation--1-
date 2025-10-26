@@ -49,7 +49,7 @@ export default function TableMenu() {
         setLoading(true);
         const now = Date.now();
         const fresh = menuCache && now - menuTs < 60_000; // 60s TTL
-        const storeRes = await api.getStore();
+        const storeRes = await api.getStore() as any;
         if (storeRes?.store?.name) setStoreName(storeRes.store.name);
         if (storeRes?.store?.slug) setStoreSlug(storeRes.store.slug);
 
@@ -87,6 +87,102 @@ export default function TableMenu() {
     };
     hydrate();
   }, [menuCache, menuTs, setMenuCache]);
+
+  // Live refresh when manager updates menu
+  useEffect(() => {
+    let subscribed: string | null = null;
+    mqttService.connect().then(() => {
+      const topic = `stores/${storeSlug}/menu/updated`;
+      subscribed = topic;
+      mqttService.subscribe(topic, async () => {
+        try {
+          const data: any = await api.getMenu();
+          setMenuCache(data);
+          const categories = data?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
+          setMenuData({
+            categories,
+            items: data?.items || [],
+            modifiers: data?.modifiers || [],
+            modifierOptions: [],
+            itemModifiers: [],
+          });
+        } catch {}
+      });
+    });
+    return () => {
+      if (subscribed) mqttService.unsubscribe(subscribed);
+    };
+  }, [storeSlug, setMenuCache]);
+
+  // Fallback polling ONLY when MQTT is not connected
+  useEffect(() => {
+    let intervalId: number | undefined;
+    let lastSnapshot: string | undefined;
+
+    const normalizeAndSet = (data: any) => {
+      const categories = data?.categories?.map((c: any) => ({ id: c.id, title: c.title })) || [];
+      setMenuData({
+        categories,
+        items: data?.items || [],
+        modifiers: data?.modifiers || [],
+        modifierOptions: [],
+        itemModifiers: [],
+      });
+    };
+
+    const poll = async () => {
+      try {
+        // If MQTT is connected, stop polling immediately
+        if (mqttService.isConnected()) {
+          stop();
+          return;
+        }
+        const data: any = await api.getMenu();
+        // Avoid unnecessary re-renders when data is unchanged
+        const snapshot = JSON.stringify({
+          items: (data?.items || []).map((i: any) => ({ id: i.id, isAvailable: i.available ?? i.isAvailable, priceCents: i.priceCents })),
+          categories: (data?.categories || []).map((c: any) => ({ id: c.id, title: c.title })),
+        });
+        if (snapshot !== lastSnapshot) {
+          lastSnapshot = snapshot;
+          setMenuCache(data);
+          normalizeAndSet(data);
+        }
+      } catch {}
+    };
+
+    const start = () => {
+      if (intervalId || mqttService.isConnected()) return;
+      // Less aggressive: 20s to reduce UX disturbance
+      intervalId = window.setInterval(poll, 20_000);
+    };
+    const stop = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        if (!mqttService.isConnected()) {
+          poll();
+          start();
+        } else {
+          stop();
+        }
+      } else {
+        stop();
+      }
+    };
+
+    onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [setMenuCache]);
 
   const categories = menuData ? menuData.categories : [];
   const filteredItems = menuData
