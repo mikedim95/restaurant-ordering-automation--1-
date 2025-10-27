@@ -73,11 +73,11 @@ export const DemoQRGrid = () => {
               <h3 className="text-2xl font-bold mb-2 text-gray-900">{card.name}</h3>
               <p className="text-purple-600 font-medium mb-8">{card.desc}</p>
               <div className="flex-1 flex items-center justify-center mb-8">
-                <div className="glass p-8 rounded-3xl border-2 border-purple-100 min-w-[240px] group-hover:scale-105 transition-transform duration-300">
+                <div className="glass p-6 rounded-3xl border-2 border-purple-100 w-[232px] h-[232px] flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                   {card.link ? (
-                    <QRCodeSVG key={card.link} value={card.link} size={220} level="H" includeMargin />
+                    <QRCodeSVG key={card.link} value={card.link} size={220} level="H" includeMargin={false} />
                   ) : (
-                    <div className="text-sm text-purple-500 px-6 py-10">Fetching a table…</div>
+                    <div className="text-sm text-purple-500 text-center">Fetching a table…</div>
                   )}
                 </div>
               </div>

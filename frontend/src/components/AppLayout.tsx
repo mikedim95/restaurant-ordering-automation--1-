@@ -3,19 +3,17 @@ import { Hero } from './landing/Hero';
 import { Features } from './landing/Features';
 import { AnimatedMockup } from './landing/AnimatedMockup';
 import { DemoQRGrid } from './landing/DemoQRGrid';
-import { LanguageSwitcher } from './LanguageSwitcher';
+import { Navigation } from './landing/Navigation';
+import { Testimonials } from './landing/Testimonials';
 
 const AppLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
-      <nav className="fixed top-0 right-0 p-6 z-50">
-        <div className="glass rounded-2xl p-2 shadow-lg">
-          <LanguageSwitcher />
-        </div>
-      </nav>
+      <Navigation />
       <Hero />
       <AnimatedMockup />
       <Features />
+      <Testimonials />
       <DemoQRGrid />
       <footer className="relative bg-gray-900 text-white py-20 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900" />

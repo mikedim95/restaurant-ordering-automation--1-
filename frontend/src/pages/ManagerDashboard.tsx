@@ -207,22 +207,22 @@ export default function ManagerDashboard() {
         <div className="grid md:grid-cols-2 gap-6 mt-8">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Manage Waiters</h2>
-            <div className="flex gap-2 mb-3">
-              <input className="border rounded p-2 flex-1" placeholder="Email" value={newWaiter.email} onChange={(e) => setNewWaiter({...newWaiter, email: e.target.value})} />
-              <input className="border rounded p-2 flex-1" placeholder="Display name" value={newWaiter.displayName} onChange={(e) => setNewWaiter({...newWaiter, displayName: e.target.value})} />
-              <input className="border rounded p-2 flex-1" placeholder="Password" type="password" value={newWaiter.password} onChange={(e) => setNewWaiter({...newWaiter, password: e.target.value})} />
-              <Button onClick={async () => {
-                setAssigning(true);
-                if (!newWaiter.email || !newWaiter.password || !newWaiter.displayName) return;
-                await api.createWaiter(newWaiter.email, newWaiter.password, newWaiter.displayName);
-                const res = await api.listWaiters() as any; setWaiters(res.waiters || []);
-                setNewWaiter({ email: '', password: '', displayName: '' });
-                setAssigning(false);
-              }} className="inline-flex items-center gap-2" disabled={assigning}>
-                {assigning && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
-                Add
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <input className="border rounded p-2 w-full" placeholder="Email" value={newWaiter.email} onChange={(e) => setNewWaiter({...newWaiter, email: e.target.value})} />
+              <input className="border rounded p-2 w-full" placeholder="Display name" value={newWaiter.displayName} onChange={(e) => setNewWaiter({...newWaiter, displayName: e.target.value})} />
+              <input className="border rounded p-2 w-full" placeholder="Password" type="password" value={newWaiter.password} onChange={(e) => setNewWaiter({...newWaiter, password: e.target.value})} />
             </div>
+            <Button onClick={async () => {
+              setAssigning(true);
+              if (!newWaiter.email || !newWaiter.password || !newWaiter.displayName) return;
+              await api.createWaiter(newWaiter.email, newWaiter.password, newWaiter.displayName);
+              const res = await api.listWaiters() as any; setWaiters(res.waiters || []);
+              setNewWaiter({ email: '', password: '', displayName: '' });
+              setAssigning(false);
+            }} className="inline-flex items-center gap-2 w-full md:w-auto" disabled={assigning}>
+              {assigning && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
+              Add Waiter
+            </Button>
             <div className="space-y-2 max-h-72 overflow-auto">
               {waiters.map((w: any) => (
                 <div key={w.id} className="flex items-center justify-between border rounded p-2">

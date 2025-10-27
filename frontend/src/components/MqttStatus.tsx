@@ -23,10 +23,28 @@ export const MqttStatus = () => {
   const cls = offline ? 'bg-amber-500' : (connected ? 'bg-green-500' : 'bg-amber-500');
   const label = offline ? 'Offline' : (connected ? 'Live' : 'Polling');
 
+  const handleClick = () => {
+    try {
+      const currentOffline = localStorage.getItem('OFFLINE');
+      if (currentOffline === '1') {
+        localStorage.removeItem('OFFLINE');
+      } else {
+        localStorage.setItem('OFFLINE', '1');
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to toggle offline mode:', error);
+    }
+  };
+
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-gray-600" title={label}>
+    <button 
+      onClick={handleClick}
+      className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded-md hover:bg-gray-100" 
+      title={`${label} - Click to toggle`}
+    >
       <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} />
       {label}
-    </span>
+    </button>
   );
 };

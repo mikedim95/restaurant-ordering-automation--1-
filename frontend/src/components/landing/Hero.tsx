@@ -15,7 +15,7 @@ export const Hero = () => {
       <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float" style={{ animationDelay: '2s' }} />
       <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float" style={{ animationDelay: '4s' }} />
       
-      <div className="relative z-10 max-w-7xl mx-auto px-4 text-center py-32">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 text-center pt-40 pb-32">
         <div className="inline-flex items-center gap-2 glass px-5 py-2.5 rounded-full mb-12 shadow-lg hover:shadow-xl transition-shadow">
           <Sparkles className="h-4 w-4 text-purple-600" />
           <span className="text-gray-700 text-sm font-medium">Real-time • Instant • PWA Ready</span>
