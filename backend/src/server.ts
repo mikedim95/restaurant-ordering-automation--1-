@@ -8,6 +8,7 @@ import { storeRoutes } from './routes/store.js';
 import { waiterTableRoutes } from './routes/waiterTables.js';
 import { managerRoutes } from './routes/manager.js';
 import { getMqttClient } from './lib/mqtt.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ await fastify.register(menuRoutes);
 await fastify.register(orderRoutes);
 await fastify.register(waiterTableRoutes);
 await fastify.register(managerRoutes);
+await fastify.register(webhookRoutes);
 
 // Initialize MQTT
 getMqttClient();
