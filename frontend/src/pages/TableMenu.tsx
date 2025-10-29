@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MenuItemCard } from "@/components/menu/MenuItemCard";
@@ -31,7 +31,7 @@ export default function TableMenu() {
     modifierOptions: any[];
     itemModifiers: any[];
   } | null>(null);
-  const [storeName, setStoreName] = useState<string>("Demo Café");
+  const [storeName, setStoreName] = useState<string>("Demo Cafe");
   const [storeSlug, setStoreSlug] = useState<string>("demo-cafe");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -517,3 +517,5 @@ export default function TableMenu() {
     </div>
   );
 }
+
+

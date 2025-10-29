@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,6 +38,7 @@ export const ManagerMenuPanel = () => {
   // UI helpers
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [showDisabled, setShowDisabled] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const load = async () => {
     const its = (await api.listItems()) as any; setItems(its.items || []);
@@ -79,8 +80,18 @@ export const ManagerMenuPanel = () => {
         <h2 className="text-xl font-semibold">Manage Menu Items</h2>
         <div className="flex gap-2">
           <Button size="sm" className="gap-2" onClick={openAdd}><Plus className="h-4 w-4"/> Add</Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setPanelOpen((prev) => !prev)}
+            aria-label={panelOpen ? 'Collapse menu management' : 'Expand menu management'}
+          >
+            {panelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
+      {panelOpen && (
+        <>
       <div className="flex items-center gap-2 mb-4 text-sm">
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={showDisabled} onChange={(e)=>setShowDisabled(e.target.checked)} />
@@ -155,6 +166,8 @@ export const ManagerMenuPanel = () => {
           </section>
         ))}
       </div>
+        </>
+      )}
 
       {/* Add/Edit Item */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -396,3 +409,5 @@ export const ManagerMenuPanel = () => {
     </Card>
   );
 };
+
+

@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Download, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Order, OrderStatus } from '@/types';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
@@ -26,6 +26,14 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [selectedStatuses, setSelectedStatuses] = useState<OrderStatus[]>([]);
+  const [panelOpen, setPanelOpen] = useState(true);
+
+  const getOrderTotal = (order: Order) => {
+    if (typeof order.total === 'number' && !Number.isNaN(order.total)) return order.total;
+    const cents = (order as any)?.totalCents;
+    if (typeof cents === 'number' && !Number.isNaN(cents)) return cents / 100;
+    return 0;
+  };
 
   const allStatuses: OrderStatus[] = ['PLACED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED'];
 
@@ -94,7 +102,7 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
     
     filteredOrders.forEach(order => {
       const dateKey = format(new Date(order.createdAt), 'MMM dd');
-      dateMap[dateKey] = (dateMap[dateKey] || 0) + order.total;
+      dateMap[dateKey] = (dateMap[dateKey] || 0) + getOrderTotal(order);
     });
     
     return Object.entries(dateMap)
@@ -109,9 +117,19 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
 
   return (
     <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Orders Analytics</h2>
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">Orders Analytics</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setPanelOpen((prev) => !prev)}
+            aria-label={panelOpen ? 'Collapse analytics' : 'Expand analytics'}
+          >
+            {panelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {(dateRange.from || dateRange.to || selectedStatuses.length > 0) && (
             <Button variant="outline" size="sm" onClick={clearFilters}>
               Clear Filters
@@ -123,7 +141,8 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
         </div>
       </div>
 
-      <Tabs defaultValue="list" className="w-full">
+      {panelOpen && (
+        <Tabs defaultValue="list" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="list">Orders List</TabsTrigger>
           <TabsTrigger value="status">By Status</TabsTrigger>
@@ -197,8 +216,8 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b">
                     <td className="py-3">{order.tableLabel}</td>
-                    <td className="py-3">{order.items.length}</td>
-                    <td className="py-3">€{order.total.toFixed(2)}</td>
+                    <td className="py-3">{order.items?.length ?? 0}</td>
+                    <td className="py-3">€{getOrderTotal(order).toFixed(2)}</td>
                     <td className="py-3">
                       <Badge variant="outline">{order.status}</Badge>
                     </td>
@@ -272,23 +291,23 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(value) => `€${value}`} />
+              <Tooltip formatter={(value) => `â‚¬${value}`} />
               <Legend />
-              <Line type="monotone" dataKey="revenue" stroke="hsl(var(--chart-2))" strokeWidth={2} name="Revenue (€)" />
+              <Line type="monotone" dataKey="revenue" stroke="hsl(var(--chart-2))" strokeWidth={2} name="Revenue (â‚¬)" />
             </LineChart>
           </ResponsiveContainer>
           <div className="grid md:grid-cols-3 gap-4 mt-6">
             <Card className="p-4">
               <p className="text-sm text-muted-foreground">Total Revenue</p>
               <p className="text-2xl font-bold">
-                €{filteredOrders.reduce((sum, o) => sum + o.total, 0).toFixed(2)}
+                â‚¬{filteredOrders.reduce((sum, o) => sum + getOrderTotal(o), 0).toFixed(2)}
               </p>
             </Card>
             <Card className="p-4">
               <p className="text-sm text-muted-foreground">Average Order Value</p>
               <p className="text-2xl font-bold">
-                €{filteredOrders.length > 0
-                  ? (filteredOrders.reduce((sum, o) => sum + o.total, 0) / filteredOrders.length).toFixed(2)
+                â‚¬{filteredOrders.length > 0
+                  ? (filteredOrders.reduce((sum, o) => sum + getOrderTotal(o), 0) / filteredOrders.length).toFixed(2)
                   : '0.00'}
               </p>
             </Card>
@@ -299,6 +318,7 @@ export function OrdersAnalytics({ orders }: OrdersAnalyticsProps) {
           </div>
         </TabsContent>
       </Tabs>
+      )}
     </Card>
   );
 }

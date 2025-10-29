@@ -10,6 +10,172 @@ import { invalidateMenuCache } from './menu.js';
 export async function managerRoutes(fastify: FastifyInstance) {
   const managerOnly = [authMiddleware, requireRole(['manager'])];
 
+  const serializeManagerTable = (table: any) => ({
+    id: table.id,
+    label: table.label,
+    isActive: table.isActive,
+    waiterCount: table._count?.waiterTables ?? 0,
+    orderCount: table._count?.orders ?? 0,
+  });
+
+  const getTableWithCounts = async (storeId: string, tableId: string) => {
+    return db.table.findFirst({
+      where: { id: tableId, storeId },
+      include: {
+        _count: {
+          select: {
+            waiterTables: true,
+            orders: true,
+          },
+        },
+      },
+    });
+  };
+
+  const tableCreateSchema = z.object({
+    label: z.string().trim().min(1).max(50),
+    isActive: z.boolean().optional(),
+  });
+
+  const tableUpdateSchema = z
+    .object({
+      label: z.string().trim().min(1).max(50).optional(),
+      isActive: z.boolean().optional(),
+    })
+    .refine((data) => typeof data.label !== 'undefined' || typeof data.isActive !== 'undefined', {
+      message: 'No fields to update provided',
+      path: ['label'],
+    });
+
+  // Tables CRUD
+  fastify.get('/manager/tables', { preHandler: managerOnly }, async (_req, reply) => {
+    try {
+      const store = await ensureStore();
+      const tables = await db.table.findMany({
+        where: { storeId: store.id },
+        orderBy: { label: 'asc' },
+        include: {
+          _count: {
+            select: {
+              waiterTables: true,
+              orders: true,
+            },
+          },
+        },
+      });
+      return reply.send({ tables: tables.map(serializeManagerTable) });
+    } catch (e) {
+      console.error('Failed to list tables', e);
+      return reply.status(500).send({ error: 'Failed to list tables' });
+    }
+  });
+
+  fastify.post('/manager/tables', { preHandler: managerOnly }, async (request, reply) => {
+    try {
+      const body = tableCreateSchema.parse(request.body);
+      const store = await ensureStore();
+      const label = body.label.trim();
+
+      const existing = await db.table.findFirst({ where: { storeId: store.id, label } });
+      if (existing) {
+        return reply.status(409).send({ error: 'Table label already exists' });
+      }
+
+      const created = await db.table.create({
+        data: {
+          storeId: store.id,
+          label,
+          isActive: body.isActive ?? true,
+        },
+      });
+
+      const withCounts = await getTableWithCounts(store.id, created.id);
+      if (!withCounts) {
+        return reply.status(500).send({ error: 'Failed to load created table' });
+      }
+      return reply.status(201).send({ table: serializeManagerTable(withCounts) });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid request', details: e.errors });
+      }
+      console.error('Failed to create table', e);
+      return reply.status(500).send({ error: 'Failed to create table' });
+    }
+  });
+
+  fastify.patch('/manager/tables/:id', { preHandler: managerOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const body = tableUpdateSchema.parse(request.body);
+      const store = await ensureStore();
+
+      const table = await db.table.findFirst({ where: { id, storeId: store.id } });
+      if (!table) {
+        return reply.status(404).send({ error: 'Table not found' });
+      }
+
+      const updateData: { label?: string; isActive?: boolean } = {};
+      if (typeof body.label !== 'undefined') {
+        const label = body.label.trim();
+        if (label !== table.label) {
+          const duplicate = await db.table.findFirst({ where: { storeId: store.id, label } });
+          if (duplicate) {
+            return reply.status(409).send({ error: 'Another table already uses that label' });
+          }
+        }
+        updateData.label = label;
+      }
+      if (typeof body.isActive !== 'undefined') {
+        updateData.isActive = body.isActive;
+      }
+
+      await db.table.update({
+        where: { id },
+        data: updateData,
+      });
+
+      const withCounts = await getTableWithCounts(store.id, id);
+      if (!withCounts) {
+        return reply.status(500).send({ error: 'Failed to load updated table' });
+      }
+      return reply.send({ table: serializeManagerTable(withCounts) });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid request', details: e.errors });
+      }
+      console.error('Failed to update table', e);
+      return reply.status(500).send({ error: 'Failed to update table' });
+    }
+  });
+
+  fastify.delete('/manager/tables/:id', { preHandler: managerOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const store = await ensureStore();
+
+      const table = await db.table.findFirst({ where: { id, storeId: store.id } });
+      if (!table) {
+        return reply.status(404).send({ error: 'Table not found' });
+      }
+
+      await db.waiterTable.deleteMany({ where: { storeId: store.id, tableId: id } });
+
+      await db.table.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      const withCounts = await getTableWithCounts(store.id, id);
+      if (!withCounts) {
+        return reply.status(500).send({ error: 'Failed to load table' });
+      }
+      return reply.send({ table: serializeManagerTable(withCounts) });
+    } catch (e) {
+      console.error('Failed to deactivate table', e);
+      return reply.status(500).send({ error: 'Failed to delete table' });
+    }
+  });
+
   // Waiters CRUD
   fastify.get('/manager/waiters', { preHandler: managerOnly }, async (_req, reply) => {
     const store = await ensureStore();

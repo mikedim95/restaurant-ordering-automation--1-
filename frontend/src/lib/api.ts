@@ -69,6 +69,18 @@ export const api = {
   getStore: () => isOffline() ? devMocks.getStore() : fetchApi("/store"),
   getTables: () => isOffline() ? devMocks.getTables() : fetchApi("/tables"),
 
+  // Manager: table management
+  managerListTables: () => isOffline() ? devMocks.managerListTables() as any : fetchApi("/manager/tables"),
+  managerCreateTable: (data: { label: string; isActive?: boolean }) => isOffline()
+    ? devMocks.managerCreateTable(data) as any
+    : fetchApi("/manager/tables", { method: "POST", body: JSON.stringify(data) }),
+  managerUpdateTable: (id: string, data: { label?: string; isActive?: boolean }) => isOffline()
+    ? devMocks.managerUpdateTable(id, data) as any
+    : fetchApi(`/manager/tables/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  managerDeleteTable: (id: string) => isOffline()
+    ? devMocks.managerDeleteTable(id) as any
+    : fetchApi(`/manager/tables/${id}`, { method: "DELETE" }),
+
   // Auth
   signIn: (email: string, password: string) => {
     if (isOffline()) return devMocks.signIn(email, password) as any;
@@ -109,25 +121,25 @@ export const api = {
     }),
 
   // Manager: waiter-table assignments
-  getWaiterTables: () => isOffline() ? Promise.resolve({ tables: [] }) as any : fetchApi("/waiter-tables"),
-  assignWaiterTable: (waiterId: string, tableId: string) => isOffline() ? Promise.resolve({ ok: true }) as any :
+  getWaiterTables: () => isOffline() ? devMocks.getWaiterTables() as any : fetchApi("/waiter-tables"),
+  assignWaiterTable: (waiterId: string, tableId: string) => isOffline() ? devMocks.assignWaiterTable(waiterId, tableId) as any :
     fetchApi("/waiter-tables", {
       method: "POST",
       body: JSON.stringify({ waiterId, tableId }),
     }),
-  removeWaiterTable: (waiterId: string, tableId: string) => isOffline() ? Promise.resolve({ ok: true }) as any :
+  removeWaiterTable: (waiterId: string, tableId: string) => isOffline() ? devMocks.removeWaiterTable(waiterId, tableId) as any :
     fetchApi("/waiter-tables", {
       method: "DELETE",
       body: JSON.stringify({ waiterId, tableId }),
     }),
 
   // Manager: waiters CRUD
-  listWaiters: () => isOffline() ? Promise.resolve({ waiters: [] }) as any : fetchApi("/manager/waiters"),
-  createWaiter: (email: string, password: string, displayName: string) => isOffline() ? Promise.resolve({ ok: true }) as any :
+  listWaiters: () => isOffline() ? devMocks.listWaiters() as any : fetchApi("/manager/waiters"),
+  createWaiter: (email: string, password: string, displayName: string) => isOffline() ? devMocks.createWaiter(email, password, displayName) as any :
     fetchApi("/manager/waiters", { method: "POST", body: JSON.stringify({ email, password, displayName }) }),
-  updateWaiter: (id: string, data: Partial<{ email: string; password: string; displayName: string }>) => isOffline() ? Promise.resolve({ ok: true }) as any :
+  updateWaiter: (id: string, data: Partial<{ email: string; password: string; displayName: string }>) => isOffline() ? devMocks.updateWaiter(id, data) as any :
     fetchApi(`/manager/waiters/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteWaiter: (id: string) => isOffline() ? Promise.resolve({ ok: true }) as any : fetchApi(`/manager/waiters/${id}`, { method: "DELETE" }),
+  deleteWaiter: (id: string) => isOffline() ? devMocks.deleteWaiter(id) as any : fetchApi(`/manager/waiters/${id}`, { method: "DELETE" }),
 
   // Manager: items CRUD
   listItems: () => isOffline() ? devMocks.listItems() as any : fetchApi("/manager/items"),

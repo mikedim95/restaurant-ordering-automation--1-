@@ -8,7 +8,9 @@ type Item = { id: Id; title: string; description?: string; priceCents: number; c
 type ModifierOption = { id: Id; title: string; priceDeltaCents: number; sortOrder: number };
 type Modifier = { id: Id; title: string; minSelect: number; maxSelect: number | null; options: ModifierOption[] };
 type ItemModifier = { itemId: Id; modifierId: Id; isRequired: boolean };
-type Table = { id: Id; code: string; title: string };
+type Table = { id: Id; label: string; isActive: boolean };
+type Waiter = { id: Id; email: string; displayName: string; password?: string };
+type WaiterAssignment = { waiterId: Id; tableId: Id };
 type OrderItem = { itemId: Id; qty: number; modifiers?: Array<{ modifierId: Id; optionIds: Id[] }> };
 type Order = { id: Id; tableId: Id; status: 'PLACED'|'ACCEPTED'|'PREPARING'|'READY'|'SERVED'|'CANCELLED'; createdAt: number; items: OrderItem[]; note?: string };
 
@@ -20,7 +22,8 @@ type Db = {
   itemModifiers: ItemModifier[];
   tables: Table[];
   orders: Order[];
-  waiters: Array<{ id: Id; email: string; displayName: string }>;
+  waiters: Waiter[];
+  waiterAssignments: WaiterAssignment[];
 };
 
 const LS_KEY = 'devMocks';
@@ -36,7 +39,31 @@ function save(db: Db) {
 function load(): Db {
   const raw = localStorage.getItem(LS_KEY);
   if (raw) {
-    try { return JSON.parse(raw) as Db; } catch {}
+    try {
+      const parsed = JSON.parse(raw) as Partial<Db> & { tables?: any[]; waiters?: any[]; waiterAssignments?: any[] };
+      const tables: Table[] = (parsed.tables ?? []).map((table: any) => ({
+        id: table.id ?? uid('table'),
+        label: table.label ?? table.title ?? table.code ?? 'Table',
+        isActive: typeof table.isActive === 'boolean' ? table.isActive : true,
+      }));
+      const waiters: Waiter[] = (parsed.waiters ?? []).map((waiter: any) => ({
+        id: waiter.id ?? uid('waiter'),
+        email: waiter.email,
+        displayName: waiter.displayName ?? waiter.email ?? 'Waiter',
+        password: waiter.password,
+      }));
+      return {
+        store: parsed.store ?? { id: 'store_1', name: 'Demo Cafe' },
+        categories: parsed.categories ?? [],
+        items: parsed.items ?? [],
+        modifiers: parsed.modifiers ?? [],
+        itemModifiers: parsed.itemModifiers ?? [],
+        tables,
+        orders: parsed.orders ?? [],
+        waiters,
+        waiterAssignments: parsed.waiterAssignments ?? [],
+      };
+    } catch {}
   }
   // Seed with demo data
   const catCoffee: Category = { id: uid('cat'), title: 'Coffee', sortOrder: 0 };
@@ -65,18 +92,29 @@ function load(): Db {
       { itemId: itemEsp.id, modifierId: modSugar.id, isRequired: false },
     ],
     tables: [
-      { id: 'T1', code: 'T1', title: 'Table 1' },
-      { id: 'T2', code: 'T2', title: 'Table 2' },
-      { id: 'T3', code: 'T3', title: 'Table 3' },
+      { id: 'T1', label: 'Table 1', isActive: true },
+      { id: 'T2', label: 'Table 2', isActive: true },
+      { id: 'T3', label: 'Table 3', isActive: true },
     ],
     orders: [],
-    waiters: [ { id: 'w1', email: 'waiter1@demo.local', displayName: 'Waiter 1' } ],
+    waiters: [ { id: 'w1', email: 'waiter1@demo.local', displayName: 'Waiter 1', password: 'password' } ],
+    waiterAssignments: [{ waiterId: 'w1', tableId: 'T1' }],
   };
   save(db);
   return db;
 }
 
 function snapshot() { return load(); }
+
+function summarizeTable(db: Db, table: Table) {
+  return {
+    id: table.id,
+    label: table.label,
+    isActive: table.isActive,
+    waiterCount: db.waiterAssignments.filter((a) => a.tableId === table.id).length,
+    orderCount: db.orders.filter((o) => o.tableId === table.id).length,
+  };
+}
 
 // Compose menu payload like backend
 function composeMenu() {
@@ -125,7 +163,13 @@ function seedOrdersIfEmpty(db: Db) {
 export const devMocks = {
   // Store & tables & menu
   getStore() { const db = snapshot(); return Promise.resolve({ store: db.store }); },
-  getTables() { const db = snapshot(); return Promise.resolve({ tables: db.tables }); },
+  getTables() {
+    const db = snapshot();
+    const tables = db.tables
+      .filter((table) => table.isActive)
+      .map((table) => ({ id: table.id, label: table.label, active: table.isActive }));
+    return Promise.resolve({ tables });
+  },
   getMenu() { return Promise.resolve(composeMenu()); },
   
   // Auth (offline)
@@ -185,6 +229,164 @@ export const devMocks = {
   },
 
   callWaiter(_tableId: Id) { return Promise.resolve({ ok: true }); },
+
+  // Manager: tables & waiters
+  managerListTables() {
+    const db = snapshot();
+    return Promise.resolve({ tables: db.tables.map((table) => summarizeTable(db, table)) });
+  },
+  managerCreateTable(data: { label: string; isActive?: boolean }) {
+    const db = snapshot();
+    const label = (data.label ?? '').trim();
+    if (!label) return Promise.reject(new Error('Label required'));
+    if (db.tables.some((t) => t.label.toLowerCase() === label.toLowerCase())) {
+      return Promise.reject(new Error('Table label already exists'));
+    }
+    const table: Table = { id: uid('table'), label, isActive: data.isActive ?? true };
+    db.tables.push(table);
+    save(db);
+    return Promise.resolve({ table: summarizeTable(db, table) });
+  },
+  managerUpdateTable(id: Id, data: { label?: string; isActive?: boolean }) {
+    const db = snapshot();
+    const table = db.tables.find((t) => t.id === id);
+    if (!table) return Promise.reject(new Error('Table not found'));
+    if (typeof data.label !== 'undefined') {
+      const next = data.label.trim();
+      if (!next) return Promise.reject(new Error('Label required'));
+      if (
+        next.toLowerCase() !== table.label.toLowerCase() &&
+        db.tables.some((t) => t.label.toLowerCase() === next.toLowerCase())
+      ) {
+        return Promise.reject(new Error('Table label already exists'));
+      }
+      table.label = next;
+    }
+    if (typeof data.isActive !== 'undefined') {
+      table.isActive = data.isActive;
+    }
+    save(db);
+    return Promise.resolve({ table: summarizeTable(db, table) });
+  },
+  managerDeleteTable(id: Id) {
+    const db = snapshot();
+    const table = db.tables.find((t) => t.id === id);
+    if (!table) return Promise.reject(new Error('Table not found'));
+    table.isActive = false;
+    db.waiterAssignments = db.waiterAssignments.filter((a) => a.tableId !== id);
+    save(db);
+    return Promise.resolve({ table: summarizeTable(db, table) });
+  },
+
+  getWaiterTables() {
+    const db = snapshot();
+    const waiters = db.waiters.map((waiter) => ({
+      id: waiter.id,
+      email: waiter.email,
+      displayName: waiter.displayName,
+    }));
+    const tables = db.tables.map((table) => ({
+      id: table.id,
+      label: table.label,
+      active: table.isActive,
+    }));
+    const assignments = db.waiterAssignments.map((assignment) => {
+      const waiter = db.waiters.find((w) => w.id === assignment.waiterId);
+      const table = db.tables.find((t) => t.id === assignment.tableId);
+      return {
+        waiterId: assignment.waiterId,
+        tableId: assignment.tableId,
+        waiter: waiter
+          ? { id: waiter.id, email: waiter.email, displayName: waiter.displayName }
+          : undefined,
+        table: table
+          ? { id: table.id, label: table.label, active: table.isActive }
+          : undefined,
+      };
+    }).filter((a) => a.waiter && a.table) as Array<{
+      waiterId: Id;
+      tableId: Id;
+      waiter: { id: Id; email: string; displayName: string };
+      table: { id: Id; label: string; active: boolean };
+    }>;
+    return Promise.resolve({ assignments, waiters, tables });
+  },
+  assignWaiterTable(waiterId: Id, tableId: Id) {
+    const db = snapshot();
+    if (!db.waiters.find((w) => w.id === waiterId)) {
+      return Promise.reject(new Error('Waiter not found'));
+    }
+    if (!db.tables.find((t) => t.id === tableId)) {
+      return Promise.reject(new Error('Table not found'));
+    }
+    const exists = db.waiterAssignments.some(
+      (a) => a.waiterId === waiterId && a.tableId === tableId
+    );
+    if (!exists) {
+      db.waiterAssignments.push({ waiterId, tableId });
+      save(db);
+    }
+    return Promise.resolve({ ok: true });
+  },
+  removeWaiterTable(waiterId: Id, tableId: Id) {
+    const db = snapshot();
+    db.waiterAssignments = db.waiterAssignments.filter(
+      (a) => !(a.waiterId === waiterId && a.tableId === tableId)
+    );
+    save(db);
+    return Promise.resolve({ ok: true });
+  },
+  listWaiters() {
+    const db = snapshot();
+    return Promise.resolve({
+      waiters: db.waiters.map((w) => ({
+        id: w.id,
+        email: w.email,
+        displayName: w.displayName,
+      })),
+    });
+  },
+  createWaiter(email: string, password: string, displayName: string) {
+    const db = snapshot();
+    if (db.waiters.some((w) => w.email.toLowerCase() === email.toLowerCase())) {
+      return Promise.reject(new Error('Waiter email already exists'));
+    }
+    const waiter: Waiter = {
+      id: uid('waiter'),
+      email: email.toLowerCase(),
+      displayName: displayName || email,
+      password,
+    };
+    db.waiters.push(waiter);
+    save(db);
+    return Promise.resolve({ waiter });
+  },
+  updateWaiter(id: Id, data: Partial<{ email: string; password: string; displayName: string }>) {
+    const db = snapshot();
+    const waiter = db.waiters.find((w) => w.id === id);
+    if (!waiter) return Promise.reject(new Error('Waiter not found'));
+    if (data.email) {
+      const next = data.email.toLowerCase();
+      if (
+        next !== waiter.email &&
+        db.waiters.some((w) => w.email.toLowerCase() === next)
+      ) {
+        return Promise.reject(new Error('Waiter email already exists'));
+      }
+      waiter.email = next;
+    }
+    if (data.displayName) waiter.displayName = data.displayName;
+    if (data.password) waiter.password = data.password;
+    save(db);
+    return Promise.resolve({ waiter });
+  },
+  deleteWaiter(id: Id) {
+    const db = snapshot();
+    db.waiters = db.waiters.filter((w) => w.id !== id);
+    db.waiterAssignments = db.waiterAssignments.filter((a) => a.waiterId !== id);
+    save(db);
+    return Promise.resolve({ ok: true });
+  },
 
   // Manager: categories
   listCategories() { const db = snapshot(); return Promise.resolve({ categories: db.categories }); },
