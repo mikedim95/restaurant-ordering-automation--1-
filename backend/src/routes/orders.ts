@@ -431,6 +431,32 @@ export async function orderRoutes(fastify: FastifyInstance) {
     }
   );
 
+  fastify.get(
+    "/orders/queue",
+    {
+      preHandler: [ipWhitelistMiddleware],
+    },
+    async (_request, reply) => {
+      try {
+        const store = await ensureStore();
+        const ahead = await db.order.count({
+          where: {
+            storeId: store.id,
+            status: {
+              in: [OrderStatus.PLACED, OrderStatus.PREPARING],
+            },
+          },
+        });
+        return reply.send({ ahead });
+      } catch (error) {
+        console.error("Order queue summary error:", error);
+        return reply
+          .status(500)
+          .send({ error: "Failed to fetch order queue summary" });
+      }
+    }
+  );
+
   // Call waiter (IP whitelisted)
   fastify.post(
     "/call-waiter",

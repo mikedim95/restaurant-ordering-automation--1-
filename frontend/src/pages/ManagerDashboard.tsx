@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { LogOut, Download, TrendingUp, Clock, DollarSign } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { ManagerMenuPanel } from './manager/ManagerMenuPanel';
+import { OrdersAnalytics } from '@/components/manager/OrdersAnalytics';
 
 export default function ManagerDashboard() {
   const { t } = useTranslation();
@@ -133,39 +134,8 @@ export default function ManagerDashboard() {
           </Card>
         </div>
 
-        {/* Recent Orders */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recent Orders</h2>
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" /> Export CSV
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b">
-                <tr className="text-left">
-                  <th className="pb-3 font-medium">Table</th>
-                  <th className="pb-3 font-medium">Items</th>
-                  <th className="pb-3 font-medium">Total</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersAll.map((order: any) => (
-                  <tr key={order.id} className="border-b">
-                    <td className="py-3">{order.tableLabel}</td>
-                    <td className="py-3">{order.items.length}</td>
-                    <td className="py-3">€{(order.total ?? order.totalCents/100).toFixed(2)}</td>
-                    <td className="py-3"><span className="px-2 py-1 rounded text-xs bg-gray-100">{order.status}</span></td>
-                    <td className="py-3 text-sm text-gray-500">{new Date(order.createdAt).toLocaleTimeString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        {/* Orders Analytics */}
+        <OrdersAnalytics orders={ordersAll} />
 
         {/* Assignments */}
         <div className="grid md:grid-cols-2 gap-6 mt-8">

@@ -21,7 +21,7 @@ export const MqttStatus = () => {
 
   const offline = isOffline();
   const cls = offline ? 'bg-amber-500' : (connected ? 'bg-green-500' : 'bg-amber-500');
-  const label = offline ? 'Offline' : (connected ? 'Live' : 'Polling');
+  const label = offline ? 'Offline' : (connected ? 'Online' : 'Online');
 
   const handleClick = () => {
     try {

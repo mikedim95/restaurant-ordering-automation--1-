@@ -150,6 +150,14 @@ export const devMocks = {
     const order = db.orders.find(o=>o.id===orderId);
     return Promise.resolve({ order });
   },
+  getOrderQueueSummary() {
+    const db = snapshot();
+    seedOrdersIfEmpty(db);
+    const ahead = db.orders.filter(
+      (o) => o.status === 'PLACED' || o.status === 'PREPARING'
+    ).length;
+    return Promise.resolve({ ahead });
+  },
   createOrder(data: { tableId: Id; items: any[]; note?: string }) {
     const db = snapshot();
     const order: Order = { id: uid('ord'), tableId: data.tableId, status: 'PLACED', createdAt: Date.now(), items: data.items as any, note: data.note };

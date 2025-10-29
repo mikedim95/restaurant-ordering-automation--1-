@@ -38,10 +38,39 @@ export default function TableMenu() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
   const [calling, setCalling] = useState<"idle" | "pending" | "accepted">("idle");
+  const [lastOrder, setLastOrder] = useState<any>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = window.localStorage.getItem("table:last-order");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const menuCache = useMenuStore((s) => s.data);
   const menuTs = useMenuStore((s) => s.ts);
   const setMenuCache = useMenuStore((s) => s.setMenu);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (lastOrder) {
+        window.localStorage.setItem("table:last-order", JSON.stringify(lastOrder));
+      } else {
+        window.localStorage.removeItem("table:last-order");
+      }
+    } catch {
+      // ignore storage errors (private mode, etc.)
+    }
+  }, [lastOrder]);
+
+  const computeOrderTotal = (order: any) => {
+    if (!order) return 0;
+    if (typeof order.total === "number") return order.total;
+    if (typeof order.totalCents === "number") return order.totalCents / 100;
+    return 0;
+  };
 
   useEffect(() => {
     const hydrate = async () => {
@@ -210,7 +239,7 @@ export default function TableMenu() {
   };
 
   const handleCheckout = async (note?: string) => {
-    if (!tableId || !menuData) return;
+    if (!tableId || !menuData) return null;
 
     try {
       const cartItems = useCartStore.getState().items;
@@ -226,11 +255,24 @@ export default function TableMenu() {
       };
 
       const response = (await api.createOrder(orderData)) as any;
+      const orderFromResponse = response?.order || null;
+      if (orderFromResponse) {
+        const normalized = {
+          ...orderFromResponse,
+          tableId: orderFromResponse.tableId ?? tableId,
+          tableLabel:
+            orderFromResponse.tableLabel ??
+            orderFromResponse.table ??
+            tableId,
+        };
+        setLastOrder(normalized);
+      }
       clearCart();
-      const orderId = response?.order?.id || response?.orderId;
+      const orderId = orderFromResponse?.id || response?.orderId;
       // pass tableId so the thanks page can subscribe to the ready topic
       const params = new URLSearchParams({ tableId });
       navigate(`/order/${orderId}/thanks?${params.toString()}`);
+      return orderFromResponse;
     } catch (err) {
       console.error("Failed to create order:", err);
       toast({
@@ -238,6 +280,7 @@ export default function TableMenu() {
         description: (err as any)?.message || "Failed to place order. Please try again.",
       });
     }
+    return null;
   };
 
   useEffect(() => {
@@ -254,11 +297,42 @@ export default function TableMenu() {
         if (!mounted) return;
         setCalling("idle");
       });
+      mqttService.subscribe(`stores/${storeSlug}/tables/${tableId}/accepted`, (msg: any) => {
+        if (!mounted) return;
+        if (msg?.orderId) {
+          setLastOrder((prev: any) =>
+            prev && prev.id === msg.orderId ? { ...prev, status: 'PREPARING' } : prev
+          );
+        }
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/${tableId}/ready`, (msg: any) => {
+        if (!mounted) return;
+        if (msg?.orderId) {
+          setLastOrder((prev: any) =>
+            prev && prev.id === msg.orderId
+              ? { ...prev, status: 'READY' }
+              : prev
+          );
+        }
+      });
+      mqttService.subscribe(`stores/${storeSlug}/tables/${tableId}/cancelled`, (msg: any) => {
+        if (!mounted) return;
+        if (msg?.orderId) {
+          setLastOrder((prev: any) =>
+            prev && prev.id === msg.orderId
+              ? { ...prev, status: 'CANCELLED' }
+              : prev
+          );
+        }
+      });
     })();
     return () => {
       mounted = false;
       mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/call/accepted`);
       mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/call/cleared`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/accepted`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/ready`);
+      mqttService.unsubscribe(`stores/${storeSlug}/tables/${tableId}/cancelled`);
     };
   }, [storeSlug, tableId]);
 
@@ -296,6 +370,37 @@ export default function TableMenu() {
           </div>
           <div className="flex gap-2 items-center">
             <AppBurger title={storeName}>
+              {lastOrder ? (
+                <div className="rounded-2xl border border-border/60 bg-card/60 px-4 py-4 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Your last order</p>
+                      <p className="text-xs text-muted-foreground">
+                        Placed {new Date(lastOrder.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-primary/10 text-primary">
+                      {(lastOrder.status || 'PLACED').toString()}
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    {(lastOrder.items || []).map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground">
+                          {item?.title ?? item?.item?.name ?? `Item ${idx + 1}`}
+                        </span>
+                        <span className="text-muted-foreground">×{item?.quantity ?? item?.qty ?? 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>Total</span>
+                    <span>
+                      €{computeOrderTotal(lastOrder).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               <button
                 disabled={calling !== "idle"}
                 onClick={handleCallWaiter}

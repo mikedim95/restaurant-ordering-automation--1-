@@ -88,6 +88,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ tableId }),
     }),
+  getOrderQueueSummary: () => isOffline()
+    ? devMocks.getOrderQueueSummary() as any
+    : fetchApi("/orders/queue"),
   // Authenticated orders API
   getOrders: (params?: { status?: string; take?: number }) => {
     const q: string[] = [];
