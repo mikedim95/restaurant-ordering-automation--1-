@@ -13,9 +13,25 @@ import { webhookRoutes } from './routes/webhooks.js';
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '8787', 10);
-const CORS_ENV = process.env.CORS_ORIGINS;
-const CORS_ORIGINS = CORS_ENV ? CORS_ENV.split(',') : ['http://localhost:5173'];
-const ALLOW_ALL_CORS = CORS_ENV === '*' || CORS_ORIGINS.includes('*');
+// CORS configuration with sensible fallbacks for production deploys
+const CORS_ENV = process.env.CORS_ORIGINS; // comma-separated list or '*'
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN; // optional single origin
+const IS_PROD = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
+
+let corsOrigin: boolean | string[] = ['http://localhost:5173'];
+if (CORS_ENV && CORS_ENV.trim().length > 0) {
+  if (CORS_ENV.trim() === '*') {
+    corsOrigin = true;
+  } else {
+    corsOrigin = CORS_ENV.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+} else if (FRONTEND_ORIGIN && FRONTEND_ORIGIN.trim().length > 0) {
+  corsOrigin = [FRONTEND_ORIGIN.trim()];
+} else if (IS_PROD) {
+  // As a last resort in production, allow all to avoid misconfig deploys.
+  // For stricter security, set CORS_ORIGINS or FRONTEND_ORIGIN envs.
+  corsOrigin = true;
+}
 
 const fastify = Fastify({
   logger: process.env.LOG_LEVEL ? { level: process.env.LOG_LEVEL } : true,
@@ -24,9 +40,10 @@ const fastify = Fastify({
 
 // CORS
 await fastify.register(cors, {
-  origin: ALLOW_ALL_CORS ? true : CORS_ORIGINS,
+  origin: corsOrigin,
   credentials: true,
 });
+fastify.log.info({ corsOrigin }, 'CORS configured');
 
 // Health check
 fastify.get('/health', async (request, reply) => {

@@ -4,14 +4,22 @@ import { devMocks } from "./devMocks";
 
 const ENV_API: string | undefined = (import.meta as any).env?.VITE_API_URL;
 const API_BASE = (() => {
-  // If a non-localhost API is explicitly provided, use it
-  if (ENV_API && !/localhost/i.test(ENV_API)) return ENV_API;
-  // Otherwise, derive from current host so phones on LAN can reach the backend
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname; // e.g., 192.168.x.x
-    return `http://${host}:8787`;
+  // 1) Respect explicit env config in all environments (recommended for production)
+  if (ENV_API && ENV_API.trim().length > 0) return ENV_API.trim();
+
+  // 2) In dev/local networks, derive backend from the current host
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location;
+    const isPrivate = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(hostname);
+    if (isPrivate) {
+      // Match current protocol to avoid mixed-content issues on local HTTPS
+      return `${protocol}//${hostname}:8787`;
+    }
   }
-  return "http://localhost:8787";
+
+  // 3) Fallback for non-browser contexts or missing config
+  // Note: In production you should set VITE_API_URL to avoid cross-origin issues.
+  return 'http://localhost:8787';
 })();
 
 function isOffline() {
