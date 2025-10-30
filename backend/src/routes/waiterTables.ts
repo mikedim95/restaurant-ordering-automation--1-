@@ -11,7 +11,7 @@ const assignmentSchema = z.object({
 });
 
 type WaiterTableWithRelations = Prisma.WaiterTableGetPayload<{
-  include: { waiter: true; table: true };
+  include: { waiter: true; table: { select: { id: true; label: true; isActive: true } } };
 }>;
 
 function serializeAssignment(assignment: WaiterTableWithRelations) {

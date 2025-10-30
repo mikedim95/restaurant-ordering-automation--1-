@@ -2,7 +2,7 @@ import { db } from '../db/index.js';
 
 export const STORE_SLUG = process.env.STORE_SLUG || 'demo-cafe';
 
-let cachedStore: { id: string; slug: string; name: string } | null = null;
+let cachedStore: { id: string; slug: string; name: string; settingsJson?: any } | null = null;
 let lastFetch = 0;
 const STORE_CACHE_TTL_MS = 60_000; // 60s
 
@@ -14,7 +14,7 @@ export async function ensureStore() {
 
   let store = await db.store.findUnique({
     where: { slug: STORE_SLUG },
-    select: { id: true, slug: true, name: true },
+    select: { id: true, slug: true, name: true, settingsJson: true },
   });
 
   if (!store) {
@@ -25,7 +25,7 @@ export async function ensureStore() {
         name: 'Demo Cafe',
         settingsJson: {},
       },
-      select: { id: true, slug: true, name: true },
+      select: { id: true, slug: true, name: true, settingsJson: true },
     });
 
     // Also create default meta if missing

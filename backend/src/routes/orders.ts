@@ -33,7 +33,7 @@ const callWaiterSchema = z.object({
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: {
-    table: true;
+    table: { select: { id: true; label: true } };
     orderItems: {
       include: {
         orderItemOptions: true;
