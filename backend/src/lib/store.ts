@@ -12,13 +12,34 @@ export async function ensureStore() {
     return cachedStore;
   }
 
-  const store = await db.store.findUnique({
+  let store = await db.store.findUnique({
     where: { slug: STORE_SLUG },
     select: { id: true, slug: true, name: true },
   });
 
   if (!store) {
-    throw new Error(`Store with slug "${STORE_SLUG}" not found. Seed the database first or set STORE_SLUG.`);
+    // Auto-bootstrap a minimal store so cloud deployments don't 500 when unseeded
+    const created = await db.store.create({
+      data: {
+        slug: STORE_SLUG,
+        name: 'Demo Cafe',
+        settingsJson: {},
+      },
+      select: { id: true, slug: true, name: true },
+    });
+
+    // Also create default meta if missing
+    try {
+      await db.storeMeta.create({
+        data: {
+          storeId: created.id,
+          currencyCode: 'EUR',
+          locale: 'en',
+        },
+      });
+    } catch {}
+
+    store = created;
   }
 
   cachedStore = store;
