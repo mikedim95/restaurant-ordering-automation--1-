@@ -1,47 +1,56 @@
-// MQTT client wrapper with auto-fallback to mock
-// If the `mqtt` package is installed, we use real WebSocket MQTT; otherwise use mock.
+// MQTT client wrapper with wildcard-aware subscriptions and a mock fallback.
 
 type MQTTCallback = (message: any) => void;
 
-const VITE_MQTT_URL = (import.meta as any).env?.VITE_MQTT_URL || "ws://localhost:1883";
-const VITE_MQTT_USERNAME = (import.meta as any).env?.VITE_MQTT_USERNAME;
-const VITE_MQTT_PASSWORD = (import.meta as any).env?.VITE_MQTT_PASSWORD;
+const BROKER_URL = (import.meta as any).env?.VITE_MQTT_URL || 'ws://localhost:1883';
+const BROKER_USERNAME = (import.meta as any).env?.VITE_MQTT_USERNAME;
+const BROKER_PASSWORD = (import.meta as any).env?.VITE_MQTT_PASSWORD;
 const CLIENT_ID = `orderflow-frontend-${Math.random().toString(16).slice(2)}`;
-console.log("MQTT Client ID:", CLIENT_ID);
-console.log("MQTT Broker URL:", VITE_MQTT_URL);
-console.log("MQTT Username:", VITE_MQTT_USERNAME ? "***" : "(none)");
+
+function topicMatches(filter: string, topic: string): boolean {
+  if (filter === topic) return true;
+  const f = filter.split('/');
+  const t = topic.split('/');
+  const fl = f.length;
+  const tl = t.length;
+  for (let i = 0, j = 0; i < fl && j < tl; i++, j++) {
+    const fp = f[i];
+    const tp = t[j];
+    if (fp === '#') return true; // multi-level wildcard
+    if (fp === '+') continue; // single-level wildcard
+    if (fp !== tp) return false;
+  }
+  return fl === tl || f[fl - 1] === '#';
+}
+
 class MockMQTTService {
   private subscribers: Map<string, MQTTCallback[]> = new Map();
   private connected = false;
 
   async connect() {
-    console.log("🔌 Mock MQTT connected");
     this.connected = true;
   }
 
   subscribe(topic: string, callback: MQTTCallback) {
     if (!this.subscribers.has(topic)) this.subscribers.set(topic, []);
     this.subscribers.get(topic)!.push(callback);
-    console.log(`📡 [mock] Subscribed to ${topic}`);
   }
 
   publish(topic: string, message: any) {
-    console.log(`📤 [mock] Published to ${topic}:`, message);
     setTimeout(() => {
-      const cbs = this.subscribers.get(topic) || [];
-      cbs.forEach((cb) => cb(message));
-    }, 100);
+      for (const [filter, cbs] of this.subscribers.entries()) {
+        if (topicMatches(filter, topic)) cbs.forEach((cb) => cb(message));
+      }
+    }, 0);
   }
 
   unsubscribe(topic: string) {
     this.subscribers.delete(topic);
-    console.log(`🔕 [mock] Unsubscribed from ${topic}`);
   }
 
   disconnect() {
     this.connected = false;
     this.subscribers.clear();
-    console.log("🔌 [mock] MQTT disconnected");
   }
 
   isConnected() {
@@ -55,51 +64,36 @@ class RealMQTTService {
 
   async connect() {
     if (this.client) return;
-    try {
-      // Load mqtt for browser via standard entry; Vite resolves to browser build
-      const mod: any = await import('mqtt');
-      const connectFn: any = mod.connect || mod.default?.connect || mod.default;
-      this.client = connectFn(VITE_MQTT_URL, {
-        clientId: CLIENT_ID,
-        username: VITE_MQTT_USERNAME,
-        password: VITE_MQTT_PASSWORD,
-        clean: true,
-        reconnectPeriod: 1000,
-      });
+    const mod: any = await import('mqtt');
+    const connectFn: any = mod.connect || mod.default?.connect || mod.default;
+    this.client = connectFn(BROKER_URL, {
+      clientId: CLIENT_ID,
+      username: BROKER_USERNAME,
+      password: BROKER_PASSWORD,
+      clean: true,
+      reconnectPeriod: 1000,
+    });
 
-      this.client.on("connect", () => {
-        console.log("🔌 MQTT connected to", VITE_MQTT_URL);
-      });
-
-      this.client.on("message", (topic: string, payload: Uint8Array) => {
-        const str = new TextDecoder().decode(payload);
-        let msg: any = str;
-        try {
-          msg = JSON.parse(str);
-        } catch {}
-        const cbs = this.subscribers.get(topic) || [];
-        cbs.forEach((cb) => cb(msg));
-      });
-
-      this.client.on("error", (err: any) => {
-        console.error("MQTT error:", err?.message || err);
-      });
-    } catch (e) {
-      console.warn("mqtt package not available; falling back to mock");
-      throw e;
-    }
+    this.client.on('message', (topic: string, payload: Uint8Array) => {
+      const str = new TextDecoder().decode(payload);
+      let msg: any = str;
+      try {
+        msg = JSON.parse(str);
+      } catch {}
+      for (const [filter, cbs] of this.subscribers.entries()) {
+        if (topicMatches(filter, topic)) cbs.forEach((cb) => cb(msg));
+      }
+    });
   }
 
   subscribe(topic: string, callback: MQTTCallback) {
     if (!this.subscribers.has(topic)) this.subscribers.set(topic, []);
     this.subscribers.get(topic)!.push(callback);
     this.client?.subscribe(topic, { qos: 1 });
-    console.log(`📡 Subscribed to ${topic}`);
   }
 
   publish(topic: string, message: any) {
-    const payload =
-      typeof message === "string" ? message : JSON.stringify(message);
+    const payload = typeof message === 'string' ? message : JSON.stringify(message);
     this.client?.publish(topic, payload, { qos: 1 });
   }
 
@@ -129,7 +123,6 @@ export const mqttService = {
         await real.connect();
         mqttServiceImpl = real;
       } catch {
-        // stay on mock
         await mqttServiceImpl.connect();
         return;
       }
@@ -151,3 +144,4 @@ export const mqttService = {
     return mqttServiceImpl.isConnected();
   },
 };
+
