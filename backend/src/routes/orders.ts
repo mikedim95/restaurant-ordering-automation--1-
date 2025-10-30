@@ -222,7 +222,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
             },
           },
           include: {
-            table: true,
+            table: { select: { id: true, label: true } },
             orderItems: {
               include: {
                 orderItemOptions: true,
@@ -286,7 +286,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
           orderBy: { placedAt: "desc" },
           take: queryTake,
           include: {
-            table: true,
+            table: { select: { id: true, label: true } },
             orderItems: {
               include: {
                 orderItemOptions: true,
@@ -316,7 +316,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
         const order = await db.order.findFirst({
           where: { id, storeId: store.id },
           include: {
-            table: true,
+            table: { select: { id: true, label: true } },
             orderItems: {
               include: {
                 orderItemOptions: true,

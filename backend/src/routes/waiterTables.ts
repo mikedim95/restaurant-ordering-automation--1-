@@ -46,7 +46,10 @@ export async function waiterTableRoutes(fastify: FastifyInstance) {
         const [assignments, waiters, tables] = await Promise.all([
           db.waiterTable.findMany({
             where: { storeId: store.id },
-            include: { waiter: true, table: true },
+            include: { 
+              waiter: true, 
+              table: { select: { id: true, label: true, isActive: true } },
+            },
             orderBy: { createdAt: "asc" },
           }),
           db.profile.findMany({
@@ -122,7 +125,10 @@ export async function waiterTableRoutes(fastify: FastifyInstance) {
             waiterId: waiter.id,
             tableId: table.id,
           },
-          include: { waiter: true, table: true },
+          include: { 
+            waiter: true, 
+            table: { select: { id: true, label: true, isActive: true } },
+          },
         });
 
         return reply.status(201).send({
