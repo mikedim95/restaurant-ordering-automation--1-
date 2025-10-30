@@ -66,10 +66,9 @@ export default function WaiterDashboard() {
     return () => clearInterval(int);
   }, [user?.id]);
 
-  // Initial hydrate from backend (once)
+  // Initial hydrate from backend (always replace local cache once per mount)
   useEffect(() => {
     if (!assignmentsLoaded || !user) return;
-    if (ordersAll.length > 0) return;
     (async () => {
       try {
         const data = (await api.getOrders({ take })) as any;
@@ -113,7 +112,7 @@ export default function WaiterDashboard() {
         console.error('Initial orders load failed', e);
       }
     })();
-  }, [assignmentsLoaded, user, ordersAll.length, setOrdersLocal, take]);
+  }, [assignmentsLoaded, user, setOrdersLocal, take]);
 
   // MQTT live updates → mutate local cache
   useEffect(() => {

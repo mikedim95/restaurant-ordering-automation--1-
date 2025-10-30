@@ -35,13 +35,13 @@ export default function CookDashboard() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Initial hydrate once
+  // Initial hydrate: always replace local cache on mount
   useEffect(() => {
     const init = async () => {
       try {
         const store = (await api.getStore()) as any;
         if (store?.store?.slug) setStoreSlug(store.store.slug);
-        if (ordersAll.length === 0) {
+        {
           const data = (await api.getOrders()) as any;
           const mapped = (data.orders || []).map((o: any) => ({
             id: o.id,
@@ -95,7 +95,7 @@ export default function CookDashboard() {
       }
     };
     init();
-  }, [ordersAll.length, setOrdersLocal]);
+  }, [setOrdersLocal]);
 
   // MQTT updates -> local store
   useEffect(() => {
