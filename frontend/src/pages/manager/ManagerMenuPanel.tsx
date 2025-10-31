@@ -47,9 +47,9 @@ export const ManagerMenuPanel = () => {
 
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => {
+  const openAdd = (prefCategoryId?: string) => {
     setEditing(null);
-    setForm({ title: '', description: '', price: '0.00', categoryId: categories[0]?.id || '', newCategoryTitle: '', isAvailable: true });
+    setForm({ title: '', description: '', price: '0.00', categoryId: prefCategoryId || categories[0]?.id || '', newCategoryTitle: '', isAvailable: true });
     setItemMods([]);
     setCustomMods([]);
     setModalOpen(true);
@@ -79,7 +79,13 @@ export const ManagerMenuPanel = () => {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">Manage Menu Items</h2>
         <div className="flex gap-2">
-          <Button size="sm" className="gap-2" onClick={openAdd}><Plus className="h-4 w-4"/> Add</Button>
+          <Button size="sm" className="gap-2" onClick={async ()=>{
+            const title = window.prompt('Add new category');
+            const t = (title || '').trim();
+            if (!t) return;
+            try { await api.createCategory(t); await load(); toast({ title: 'Category added', description: t }); }
+            catch(e:any){ toast({ title: 'Create failed', description: e?.message || 'Could not create category' }); }
+          }}><Plus className="h-4 w-4"/> Add Category</Button>
           <Button
             variant="ghost"
             size="icon"
@@ -103,8 +109,22 @@ export const ManagerMenuPanel = () => {
         {grouped.map(({cat, items}) => (
           <section key={cat.id}>
             <div className="flex items-center gap-3 mb-3">
-              <h3 className="text-lg font-semibold text-gray-800">{cat.title}</h3>
-              <div className="h-px bg-gray-200 flex-1"/>
+              <h3 className="text-lg font-semibold text-gray-800 flex-1">{cat.title}</h3>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" className="gap-1" onClick={()=> openAdd(cat.id)}><Plus className="h-4 w-4"/> Item</Button>
+                <Button size="sm" variant="ghost" onClick={async ()=>{
+                  const title = window.prompt('Rename category', cat.title);
+                  if (!title || title.trim() === cat.title) return;
+                  try { await api.updateCategory(cat.id, { title: title.trim() }); await load(); toast({ title: 'Category renamed', description: title.trim() }); }
+                  catch(e:any){ toast({ title: 'Rename failed', description: e?.message || 'Could not rename category' }); }
+                }}><Pencil className="h-4 w-4"/></Button>
+                <Button size="sm" variant="ghost" onClick={async ()=>{
+                  const yes = window.confirm('Delete this category? Items will remain but may appear uncategorized.');
+                  if (!yes) return;
+                  try { await api.deleteCategory(cat.id); await load(); toast({ title: 'Category deleted', description: cat.title }); }
+                  catch(e:any){ toast({ title: 'Delete failed', description: e?.message || 'Could not delete category' }); }
+                }}><Trash2 className="h-4 w-4"/></Button>
+              </div>
             </div>
             <div className="space-y-2">
               {items.length === 0 ? (
@@ -175,19 +195,21 @@ export const ManagerMenuPanel = () => {
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Item' : 'Add Item'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             <Input placeholder="Title" value={form.title} onChange={(e)=>setForm({...form, title: e.target.value})}/>
             <Textarea placeholder="Description" value={form.description} onChange={(e)=>setForm({...form, description: e.target.value})}/>
-            <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="Price (â‚¬)" type="number" min={0} step={0.01} value={form.price} onChange={(e)=>setForm({...form, price: e.target.value})}/>
-              <select className="border rounded p-2" value={form.categoryId || 'NEW'} onChange={(e)=>setForm({...form, categoryId: e.target.value==='NEW'?'':e.target.value})}>
-                <option value="NEW">+ New categoryâ€¦</option>
-                {categories.map((c:any)=>(<option key={c.id} value={c.id}>{c.title}</option>))}
-              </select>
+            <div className="grid grid-cols-2 gap-2 items-center">
+              <Input placeholder="Price (€)" type="number" min={0} step={0.01} value={form.price} onChange={(e)=>setForm({...form, price: e.target.value})}/>
+              {editing ? (
+                <select className="border rounded p-2" value={form.categoryId} onChange={(e)=>setForm({...form, categoryId: e.target.value})}>
+                  {categories.map((c:any)=>(<option key={c.id} value={c.id}>{c.title}</option>))}
+                </select>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Category: <span className="font-medium text-foreground">{categories.find((c:any)=>c.id===form.categoryId)?.title || '—'}</span>
+                </div>
+              )}
             </div>
-            {!form.categoryId && (
-              <Input placeholder="New category title" value={form.newCategoryTitle} onChange={(e)=>setForm({...form, newCategoryTitle: e.target.value})}/>
-            )}
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.isAvailable} onChange={(e)=>setForm({...form, isAvailable: e.target.checked})}/>
               Available
@@ -206,7 +228,7 @@ export const ManagerMenuPanel = () => {
                       <div className="font-medium">{m.name}{m.required ? ' (required)' : ''}</div>
                       <ul className="ml-4 text-sm text-gray-600 list-disc">
                         {(m.options||[]).map((o:any)=> (
-                          <li key={o.id}>{o.label}{(o.priceDelta ?? 0) > 0 ? ` +â‚¬${(o.priceDelta).toFixed(2)}` : ''}</li>
+                          <li key={o.id}>{o.label}{(o.priceDelta ?? 0) > 0 ? ` +€${(o.priceDelta).toFixed(2)}` : ''}</li>
                         ))}
                       </ul>
                     </div>
@@ -288,42 +310,50 @@ export const ManagerMenuPanel = () => {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={()=>setModalOpen(false)}>Cancel</Button>
-            <Button onClick={async ()=>{
-              setSavingItem(true);
-              if (!form.title) return;
-              let categoryId = form.categoryId;
-              if (!categoryId) {
-                if (!form.newCategoryTitle) return;
-                const created = (await api.createCategory(form.newCategoryTitle)) as any;
-                categoryId = created.category.id;
-                const cats = (await api.listCategories()) as any; setCategories(cats.categories||[]);
-              }
-              const payload = { title: form.title, description: form.description, priceCents: Math.round(parseFloat(form.price||'0')*100), categoryId, isAvailable: form.isAvailable };
-              let itemId = editing?.id as string | undefined;
-              if (editing) { await api.updateItem(editing.id, payload); itemId = editing.id; }
-              else { const created = (await api.createItem(payload)) as any; itemId = created.item?.id; }
-              if (itemId) {
-                // Create custom modifiers and options then link
-                for (const cm of customMods) {
-                  if (!cm.title.trim()) continue;
-                  const created = (await api.createModifier({ title: cm.title, minSelect: cm.required ? 1 : 0, maxSelect: null })) as any;
-                  const mid = created.modifier.id;
-                  let idx = 0;
-                  for (const opt of cm.options) {
-                    if (!opt.title.trim()) continue;
-                    const priceCents = Math.round(parseFloat(opt.price || '0')*100) || 0;
-                    await api.createModifierOption({ modifierId: mid, title: opt.title, priceDeltaCents: priceCents, sortOrder: idx++ });
-                  }
-                  await api.linkItemModifier(itemId, mid, cm.required);
-                }
-              }
-              await load();
-              setModalOpen(false);
-              setSavingItem(false);
-            }} disabled={savingItem} className="inline-flex items-center gap-2">
-              {savingItem && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
-              Save
-            </Button>
+            {(() => {
+              const priceNum = parseFloat(form.price || '');
+              const canSave = form.title.trim().length > 0 && Number.isFinite(priceNum);
+              return (
+                <Button
+                  onClick={async ()=>{
+                    if (!canSave) return;
+                    setSavingItem(true);
+                    try {
+                      const categoryId = form.categoryId;
+                      if (!categoryId) return; // safety: add always has category preset
+                      const payload = { title: form.title.trim(), description: form.description, priceCents: Math.round((parseFloat(form.price||'0')||0)*100), categoryId, isAvailable: form.isAvailable };
+                      let itemId = editing?.id as string | undefined;
+                      if (editing) { await api.updateItem(editing.id, payload); itemId = editing.id; }
+                      else { const created = (await api.createItem(payload)) as any; itemId = created.item?.id; }
+                      if (itemId) {
+                        // Create custom modifiers and options then link
+                        for (const cm of customMods) {
+                          if (!cm.title.trim()) continue;
+                          const created = (await api.createModifier({ title: cm.title, minSelect: cm.required ? 1 : 0, maxSelect: null })) as any;
+                          const mid = created.modifier.id;
+                          let idx = 0;
+                          for (const opt of cm.options) {
+                            if (!opt.title.trim()) continue;
+                            const priceCents = Math.round((parseFloat(opt.price || '0')||0)*100);
+                            await api.createModifierOption({ modifierId: mid, title: opt.title, priceDeltaCents: priceCents, sortOrder: idx++ });
+                          }
+                          await api.linkItemModifier(itemId, mid, cm.required);
+                        }
+                      }
+                      await load();
+                      setModalOpen(false);
+                    } finally {
+                      setSavingItem(false);
+                    }
+                  }}
+                  disabled={savingItem || !canSave}
+                  className="inline-flex items-center gap-2"
+                >
+                  {savingItem && <span className="h-4 w-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"/>}
+                  Save
+                </Button>
+              );
+            })()}
           </DialogFooter>
         </DialogContent>
       </Dialog>
